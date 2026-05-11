@@ -1,0 +1,71 @@
+Requirements Specification 
+Private School Management Platform 
+(Primary & Secondary) 
+1. Project Context & Objective 
+This project is part of a 4-month full-stack development internship. The objective is to design and develop a web-based platform for managing a private primary and secondary school. The platform centralizes academic, administrative, and communication processes between administration, teachers, parents, and students. 
+2. Internship Duration 
+• Total duration: 4 months 
+• Internship type: Full-stack web development 
+3. Technical Stack (Mandatory) 
+• Frontend: React, JavaScript (ES6+), HTML5, CSS3 / SCSS 
+• Backend: Node.js, Express.js, REST API, JWT authentication 
+• Database: MySQL 
+• ORM: Prisma 
+• Tools: Git, Postman, Figma (optional) 
+4. User Roles & Access Levels 
+• Admin: Manage users, classes, academic years, teachers, and reports 
+• Teacher: Manage grades, attendance, courses, and parent communication 
+• Parent: View children profiles, grades, attendance, and announcements 
+• Student: Access timetable, grades, assignments, and course materials 
+5. Authentication & Security 
+• Login / Logout 
+• Role-based access control 
+• JWT authentication 
+• Password hashing 
+• Protected API routes 
+6. Academic Management 
+Classes & Levels 
+• Primary and Secondary levels 
+• Class creation and management 
+• Academic year management 
+7. Student Management 
+• Create student profiles 
+• Assign students to classes 
+• Link students to parents 
+• Track academic progress 
+8. Grades & Evaluation 
+• Enter grades per subject
+• View grade history 
+• Average calculation (optional) 
+• Report export (bonus) 
+9. Attendance Management 
+• Daily attendance tracking 
+• Absence history 
+• Absence justification (optional) 
+10. Courses & Assignments 
+• Upload course materials 
+• Create assignments with deadlines 
+• Student submissions (bonus) 
+11. Communication & Notifications 
+• Admin announcements 
+• Teacher ↔ Parent messaging 
+• Notifications for grades, absences, and announcements 
+12. Expected Architecture 
+Frontend: Components, Pages, Services, Hooks, Routing Backend: Routes, Controllers, Services, Middlewares, Prisma schema 
+13. Recommended Timeline (4 Months) 
+• Month 1: Analysis, UI mockups, database design 
+• Month 2: Backend development and APIs 
+• Month 3: Frontend development and integration 
+• Month 4: Testing, documentation, final demo 
+14. Expected Deliverables 
+• Frontend and backend source code 
+• MySQL database 
+• Prisma schema file 
+• Technical documentation 
+• Functional demo 
+15. Educational Objectives 
+• Build a real-world school management system 
+• Implement role-based access systems 
+• Design relational databases with Prisma 
+• Develop secure REST APIs 
+• Apply Git best practices

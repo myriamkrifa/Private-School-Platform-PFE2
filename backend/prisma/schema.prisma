@@ -1,0 +1,432 @@
+// Private School Management Platform - Prisma schema (MySQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+//  Enums
+// ─────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  TEACHER
+  PARENT
+  STUDENT
+}
+
+enum ClassLevel {
+  PRIMARY
+  SECONDARY
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum NotificationType {
+  GRADE
+  ABSENCE
+  ANNOUNCEMENT
+  MESSAGE
+  ASSIGNMENT
+  SYSTEM
+}
+
+enum GradeType {
+  TEST
+  EXAM
+  HOMEWORK
+  ORAL
+  PROJECT
+}
+
+enum AssignmentTargetType {
+  FULL_CLASS
+  SELECTED_STUDENTS
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  TRANSFERRED
+}
+
+enum TeacherStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+}
+
+// ─────────────────────────────────────────────
+//  Core identity
+// ─────────────────────────────────────────────
+
+model User {
+  id                  Int       @id @default(autoincrement())
+  name                String
+  email               String    @unique
+  password            String
+  role                Role      @default(STUDENT)
+  isActive            Boolean   @default(true)
+  identityCardNumber  String?   @unique
+  phoneNumber         String?
+  mustChangePassword  Boolean   @default(false)
+
+  studentProfile      Student?
+  teacherProfile      Teacher?
+
+  parentLinks         ParentStudent[] @relation("ParentLinkParent")
+  sentMessages        Message[]       @relation("MessageSender")
+  receivedMessages    Message[]       @relation("MessageRecipient")
+  notifications       Notification[]
+  announcements       Announcement[]  @relation("AnnouncementAuthor")
+  authoredGrades      Grade[]         @relation("TeacherGrades")
+  attendancesTaken    Attendance[]    @relation("AttendanceRecorder")
+  courses             Course[]        @relation("CourseTeacher")
+  authoredAssignments Assignment[]    @relation("TeacherAssignments")
+  auditLogs           AuditLog[]      @relation("AuditActor")
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model Student {
+  id              Int             @id @default(autoincrement())
+  userId          Int?            @unique
+  name            String
+  email           String          @unique
+  // Optional extended profile fields
+  firstName       String?
+  lastName        String?
+  birthDate       DateTime?
+  gender          String?
+  address         String?
+  phone           String?
+  enrollmentDate  DateTime?
+  status          StudentStatus   @default(ACTIVE)
+  // Lightweight grade label (e.g. "7", "Primary 1") kept for compatibility
+  grade           String
+  classId         Int?
+
+  user            User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class           Class?          @relation(fields: [classId], references: [id], onDelete: SetNull)
+  parentLinks     ParentStudent[]
+  grades          Grade[]
+  attendances     Attendance[]
+  submissions     Submission[]
+  assignmentRecipients AssignmentRecipient[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Teacher {
+  id              Int             @id @default(autoincrement())
+  userId          Int?            @unique
+  name            String
+  email           String          @unique
+  // Primary specialty (kept under both names for compatibility)
+  subject         String
+  // Optional extended profile fields
+  firstName       String?
+  lastName        String?
+  phone           String?
+  specialty       String?
+  hireDate        DateTime?
+  status          TeacherStatus   @default(ACTIVE)
+
+  user            User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classes         Class[]
+  teachingAssignments TeachingAssignment[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+// Parent profiles are represented by User(role=PARENT) + ParentStudent links.
+// This avoids breaking existing data while satisfying business rules.
+model ParentStudent {
+  id        Int      @id @default(autoincrement())
+  parentId  Int
+  studentId Int
+
+  parent    User     @relation("ParentLinkParent", fields: [parentId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([parentId, studentId])
+}
+
+// ─────────────────────────────────────────────
+//  Academic structure
+// ─────────────────────────────────────────────
+
+model AcademicYear {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean   @default(false)
+  classes   Class[]
+  createdAt DateTime  @default(now())
+}
+
+model Class {
+  id              Int           @id @default(autoincrement())
+  name            String
+  room            String
+  level           ClassLevel    @default(PRIMARY)
+  capacity        Int?
+  description     String?       @db.Text
+  academicYearId  Int?
+
+  academicYear    AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  students        Student[]
+  teachers        Teacher[]
+  courses         Course[]
+  grades          Grade[]
+  attendances     Attendance[]
+  assignments     Assignment[]
+  teachingAssignments TeachingAssignment[]
+  announcements   Announcement[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+// Course == Subject (school subject taught in classes).
+// Retains the name `Course` to keep existing controllers working.
+model Course {
+  id          Int              @id @default(autoincrement())
+  title       String
+  description String?          @db.Text
+  // New subject-style metadata
+  code        String?
+  coefficient Float            @default(1)
+  levelTag    ClassLevel?
+
+  classId     Int?
+  teacherId   Int?
+
+  class       Class?           @relation(fields: [classId], references: [id], onDelete: SetNull)
+  teacher     User?            @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  materials   CourseMaterial[]
+  assignments Assignment[]
+  grades      Grade[]
+  attendances Attendance[]
+  teachingAssignments TeachingAssignment[]
+
+  createdAt   DateTime         @default(now())
+}
+
+model TeachingAssignment {
+  id        Int      @id @default(autoincrement())
+  teacherId Int
+  classId   Int
+  courseId  Int
+
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([teacherId, classId, courseId])
+}
+
+// ─────────────────────────────────────────────
+//  Evaluations
+// ─────────────────────────────────────────────
+
+model Grade {
+  id          Int        @id @default(autoincrement())
+  studentId   Int
+  classId     Int?
+  courseId    Int?
+  teacherId   Int?
+  subject     String
+  score       Float
+  maxScore    Float      @default(20)
+  type        GradeType  @default(TEST)
+  title       String?
+  comments    String?    @db.Text
+  recordedAt  DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  student     Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class       Class?     @relation(fields: [classId], references: [id], onDelete: SetNull)
+  course      Course?    @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  teacher     User?      @relation("TeacherGrades", fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@index([classId])
+  @@index([courseId])
+  @@index([studentId])
+}
+
+model Attendance {
+  id            Int              @id @default(autoincrement())
+  studentId     Int
+  classId       Int?
+  courseId      Int?
+  date          DateTime
+  status        AttendanceStatus
+  justification String?          @db.Text
+  comment       String?          @db.Text
+  takenById     Int?
+
+  student       Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class         Class?           @relation(fields: [classId], references: [id], onDelete: SetNull)
+  course        Course?          @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  takenBy       User?            @relation("AttendanceRecorder", fields: [takenById], references: [id], onDelete: SetNull)
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([studentId, classId, courseId, date])
+  @@index([date])
+}
+
+// ─────────────────────────────────────────────
+//  Course materials
+// ─────────────────────────────────────────────
+
+model CourseMaterial {
+  id          Int      @id @default(autoincrement())
+  courseId    Int
+  title       String
+  description String?  @db.Text
+  fileUrl     String?
+  content     String?  @db.Text
+  createdAt   DateTime @default(now())
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────
+//  Assignments + submissions
+// ─────────────────────────────────────────────
+
+model Assignment {
+  id          Int          @id @default(autoincrement())
+  courseId    Int
+  classId     Int?
+  teacherId   Int?
+  title       String
+  description String?      @db.Text
+  dueDate     DateTime
+  targetType  AssignmentTargetType @default(FULL_CLASS)
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  class       Class?       @relation(fields: [classId], references: [id], onDelete: SetNull)
+  teacher     User?        @relation("TeacherAssignments", fields: [teacherId], references: [id], onDelete: SetNull)
+  submissions Submission[]
+  recipients  AssignmentRecipient[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model AssignmentRecipient {
+  id           Int        @id @default(autoincrement())
+  assignmentId Int
+  studentId    Int
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+}
+
+model Submission {
+  id           Int        @id @default(autoincrement())
+  assignmentId Int
+  studentId    Int
+  content      String?    @db.Text
+  fileUrl      String?
+  submittedAt  DateTime   @default(now())
+  grade        Float?
+  feedback     String?    @db.Text
+
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+}
+
+// ─────────────────────────────────────────────
+//  Communication
+// ─────────────────────────────────────────────
+
+model Announcement {
+  id          Int      @id @default(autoincrement())
+  title       String
+  content     String   @db.Text
+  // Optional targeting: a role, a class, or both. Empty = everyone.
+  targetRole  Role?
+  classId     Int?
+  createdById Int?
+
+  class       Class?   @relation(fields: [classId], references: [id], onDelete: SetNull)
+  createdBy   User?    @relation("AnnouncementAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime @default(now())
+}
+
+model Message {
+  id          Int      @id @default(autoincrement())
+  senderId    Int
+  recipientId Int
+  subject     String?
+  content     String   @db.Text
+  isRead      Boolean  @default(false)
+
+  sender      User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient   User     @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  type      NotificationType
+  title     String?
+  message   String           @db.Text
+  isRead    Boolean          @default(false)
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+}
+
+// ─────────────────────────────────────────────
+//  Audit
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  actorId    Int?
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  metadata   Json?
+
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+}

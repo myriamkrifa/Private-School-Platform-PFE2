@@ -1,0 +1,254 @@
+{
+  "info": {
+    "name": "Private School Platform",
+    "_postman_id": "b3b7e9f6-1c2a-4d2f-9a82-private-school-pfe",
+    "description": "REST endpoints for the Private School Management Platform. Set the `baseUrl` and `token` collection variables, login first, then copy the returned JWT into `token`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@school.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (teacher)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"teacher.math@school.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (parent)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"parent.ali@school.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (student)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student.youssef@school.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        { "name": "Me", "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" } }
+      ]
+    },
+    {
+      "name": "Dashboards",
+      "item": [
+        { "name": "Admin",   "request": { "method": "GET", "url": "{{baseUrl}}/admin/dashboard" } },
+        { "name": "Teacher", "request": { "method": "GET", "url": "{{baseUrl}}/teacher/dashboard" } },
+        { "name": "Parent",  "request": { "method": "GET", "url": "{{baseUrl}}/parent/dashboard" } },
+        { "name": "Student", "request": { "method": "GET", "url": "{{baseUrl}}/student/dashboard" } }
+      ]
+    },
+    {
+      "name": "Classes",
+      "item": [
+        { "name": "List",    "request": { "method": "GET",    "url": "{{baseUrl}}/classes" } },
+        { "name": "Detail",  "request": { "method": "GET",    "url": "{{baseUrl}}/classes/1" } },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/classes",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Primary 1\",\n  \"levelTag\": \"PRIMARY\",\n  \"academicYearId\": 1,\n  \"capacity\": 30\n}" }
+          }
+        },
+        {
+          "name": "Add student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/classes/1/students",
+            "body": { "mode": "raw", "raw": "{\n  \"studentId\": 4\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Students",
+      "item": [
+        { "name": "List",          "request": { "method": "GET", "url": "{{baseUrl}}/students" } },
+        { "name": "Detail",        "request": { "method": "GET", "url": "{{baseUrl}}/students/1" } },
+        { "name": "My children",   "request": { "method": "GET", "url": "{{baseUrl}}/students/me/children" } },
+        { "name": "Progress",      "request": { "method": "GET", "url": "{{baseUrl}}/students/1/progress" } }
+      ]
+    },
+    {
+      "name": "Subjects",
+      "item": [
+        { "name": "List", "request": { "method": "GET", "url": "{{baseUrl}}/subjects" } },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/subjects",
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Mathematics\",\n  \"code\": \"MATH\",\n  \"coefficient\": 4,\n  \"levelTag\": \"SECONDARY\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Teaching Assignments",
+      "item": [
+        { "name": "List", "request": { "method": "GET", "url": "{{baseUrl}}/teaching-assignments" } },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/teaching-assignments",
+            "body": { "mode": "raw", "raw": "{\n  \"teacherId\": 1,\n  \"classId\": 2,\n  \"courseId\": 1\n}" }
+          }
+        },
+        { "name": "Delete", "request": { "method": "DELETE", "url": "{{baseUrl}}/teaching-assignments/1" } }
+      ]
+    },
+    {
+      "name": "Grades",
+      "item": [
+        {
+          "name": "Bulk upsert",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/grades/bulk-upsert",
+            "body": { "mode": "raw", "raw": "{\n  \"classId\": 2,\n  \"courseId\": 1,\n  \"title\": \"Algebra mid-term\",\n  \"type\": \"EXAM\",\n  \"date\": \"2026-10-15\",\n  \"grades\": [\n    { \"studentId\": 4, \"score\": 16 },\n    { \"studentId\": 5, \"score\": 12 }\n  ]\n}" }
+          }
+        },
+        { "name": "Student grades", "request": { "method": "GET", "url": "{{baseUrl}}/grades/student/1" } }
+      ]
+    },
+    {
+      "name": "Attendance",
+      "item": [
+        {
+          "name": "Bulk upsert",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/attendance/bulk-upsert",
+            "body": { "mode": "raw", "raw": "{\n  \"classId\": 2,\n  \"courseId\": 1,\n  \"date\": \"2026-10-15T08:00:00.000Z\",\n  \"records\": [\n    { \"studentId\": 4, \"status\": \"PRESENT\" },\n    { \"studentId\": 5, \"status\": \"ABSENT\", \"justification\": \"Sick\" }\n  ]\n}" }
+          }
+        },
+        { "name": "Student attendance", "request": { "method": "GET", "url": "{{baseUrl}}/attendance/student/1" } }
+      ]
+    },
+    {
+      "name": "Assignments",
+      "item": [
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/assignments",
+            "body": { "mode": "raw", "raw": "{\n  \"courseId\": 1,\n  \"classId\": 2,\n  \"title\": \"Chapter 1 exercises\",\n  \"description\": \"Solve all problems on page 12\",\n  \"deadline\": \"2026-10-20\",\n  \"targetType\": \"FULL_CLASS\"\n}" }
+          }
+        },
+        { "name": "By course", "request": { "method": "GET", "url": "{{baseUrl}}/assignments/course/1" } }
+      ]
+    },
+    {
+      "name": "Course materials",
+      "item": [
+        { "name": "List all", "request": { "method": "GET", "url": "{{baseUrl}}/courses/materials" } },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/courses/1/materials",
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Lesson 1\",\n  \"description\": \"Intro to algebra\",\n  \"fileUrl\": \"https://example.com/lesson1.pdf\",\n  \"classId\": 2\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Announcements",
+      "item": [
+        { "name": "List", "request": { "method": "GET", "url": "{{baseUrl}}/announcements" } },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/announcements",
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Parent-teacher meeting\",\n  \"content\": \"Saturday at 10:00\",\n  \"targetRole\": \"PARENT\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Messages",
+      "item": [
+        { "name": "Inbox",    "request": { "method": "GET", "url": "{{baseUrl}}/messages/inbox" } },
+        { "name": "Sent",     "request": { "method": "GET", "url": "{{baseUrl}}/messages/sent" } },
+        { "name": "Contacts", "request": { "method": "GET", "url": "{{baseUrl}}/messages/contacts" } },
+        {
+          "name": "Send",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/messages",
+            "body": { "mode": "raw", "raw": "{\n  \"recipientId\": 5,\n  \"subject\": \"Hello\",\n  \"content\": \"Quick update about your child\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        { "name": "Mine", "request": { "method": "GET",   "url": "{{baseUrl}}/notifications/me" } },
+        { "name": "Mark all read", "request": { "method": "PATCH", "url": "{{baseUrl}}/notifications/me/read-all" } }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        { "name": "Class report",       "request": { "method": "GET", "url": "{{baseUrl}}/reports/class/1" } },
+        { "name": "Class report CSV",   "request": { "method": "GET", "url": "{{baseUrl}}/reports/class/1/export" } },
+        { "name": "Student report",     "request": { "method": "GET", "url": "{{baseUrl}}/reports/student/1" } },
+        { "name": "Teacher workload",   "request": { "method": "GET", "url": "{{baseUrl}}/reports/teacher-workload" } }
+      ]
+    }
+  ]
+}
