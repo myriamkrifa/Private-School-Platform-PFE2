@@ -130,14 +130,6 @@ export const getTeacherClassStudents = (classId) => API.get(`/teacher/classes/${
 export const getTeacherClassSubjects = (classId) => API.get(`/teacher/classes/${classId}/subjects`)
 
 // ─────────────────────────────────────────────
-// Reports
-// ─────────────────────────────────────────────
-export const getClassReport = (classId) => API.get(`/reports/class/${classId}`)
-export const getStudentReport = (studentId) => API.get(`/reports/student/${studentId}`)
-export const getTeacherWorkloadReport = () => API.get('/reports/teacher-workload')
-export const exportClassReport = (classId) => API.get(`/reports/class/${classId}/export`)
-
-// ─────────────────────────────────────────────
 // Communication
 // ─────────────────────────────────────────────
 export const getAnnouncements = () => API.get('/announcements')

@@ -19,7 +19,6 @@ const auditRoutes = require('./routes/audit.routes')
 const teachingAssignmentRoutes = require('./routes/teachingAssignment.routes')
 const teacherWorkRoutes = require('./routes/teacherWork.routes')
 const subjectRoutes = require('./routes/subject.routes')
-const reportRoutes = require('./routes/report.routes')
 const dashboardRoutes = require('./routes/dashboard.routes')
 
 const app  = express()
@@ -56,7 +55,6 @@ app.use('/api/notifications', notificationRoutes)
 app.use('/api/audit', auditRoutes)
 app.use('/api/teaching-assignments', teachingAssignmentRoutes)
 app.use('/api/subjects', subjectRoutes)
-app.use('/api/reports', reportRoutes)
 // Role-specific dashboards (mounted at /api so they expose
 // /api/admin/dashboard, /api/teacher/dashboard, /api/parent/dashboard,
 // /api/student/dashboard).

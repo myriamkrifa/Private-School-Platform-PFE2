@@ -1,5 +1,5 @@
 import {
-  BarChart3,
+  Bell,
   BookOpen,
   CalendarDays,
   ClipboardList,
@@ -17,7 +17,6 @@ export const dashboardModulesByRole = {
     'Manage classes',
     'Manage academic years',
     'Manage teachers',
-    'Manage reports'
   ],
   TEACHER: [
     'Manage grades',
@@ -52,12 +51,10 @@ export const navigationItemsByRole = {
     { icon: ClipboardList, label: 'Teaching Assignments', path: '/teaching-assignments' },
     { icon: GraduationCap, label: 'Grades', path: '/grades' },
     { icon: CalendarDays, label: 'Attendance', path: '/attendance' },
-    { icon: ClipboardList, label: 'Assignments', path: '/assignments' },
     { icon: BookOpen, label: 'Courses', path: '/courses' },
-    { icon: BarChart3, label: 'Reports', path: '/reports' },
     { icon: Megaphone, label: 'Announcements', path: '/announcements' },
     { icon: Inbox, label: 'Messages', path: '/messages' },
-    { icon: Inbox, label: 'Notifications', path: '/notifications' }
+    { icon: Bell, label: 'Notifications', path: '/notifications' }
   ],
   TEACHER: [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
@@ -70,7 +67,7 @@ export const navigationItemsByRole = {
     { icon: BookOpen, label: 'Courses', path: '/courses' },
     { icon: Megaphone, label: 'Announcements', path: '/announcements' },
     { icon: Inbox, label: 'Messages', path: '/messages' },
-    { icon: Inbox, label: 'Notifications', path: '/notifications' }
+    { icon: Bell, label: 'Notifications', path: '/notifications' }
   ],
   PARENT: [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
@@ -80,7 +77,7 @@ export const navigationItemsByRole = {
     { icon: BookOpen, label: 'Courses', path: '/courses' },
     { icon: Megaphone, label: 'Announcements', path: '/announcements' },
     { icon: Inbox, label: 'Messages', path: '/messages' },
-    { icon: Inbox, label: 'Notifications', path: '/notifications' }
+    { icon: Bell, label: 'Notifications', path: '/notifications' }
   ],
   STUDENT: [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
@@ -91,7 +88,7 @@ export const navigationItemsByRole = {
     { icon: ClipboardList, label: 'Assignments', path: '/assignments' },
     { icon: BookOpen, label: 'Course Materials', path: '/courses' },
     { icon: Megaphone, label: 'Announcements', path: '/announcements' },
-    { icon: Inbox, label: 'Notifications', path: '/notifications' }
+    { icon: Bell, label: 'Notifications', path: '/notifications' }
   ]
 }
 

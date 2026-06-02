@@ -9,7 +9,9 @@ export default function DashboardShell({ title, subtitle, children }) {
   const navigate = useNavigate()
   const [profileOpen, setProfileOpen] = useState(false)
 
-  const navItems = navigationItemsByRole[user?.role] || navigationItemsByRole.STUDENT
+  const navItems = (navigationItemsByRole[user?.role] || navigationItemsByRole.STUDENT).filter(
+    (item) => item.label !== 'Notifications'
+  )
 
   const initials = useMemo(() => {
     return user?.name
@@ -73,9 +75,13 @@ export default function DashboardShell({ title, subtitle, children }) {
               </div>
 
               <div className="flex items-center gap-2 md:gap-3">
-                <button type="button" className="relative rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-100">
+                <NavLink
+                  to="/notifications"
+                  aria-label="Notifications"
+                  className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
                   <Bell size={18} />
-                </button>
+                </NavLink>
 
                 <div className="relative">
                   <button

@@ -16,7 +16,6 @@ import Courses   from './pages/Courses'
 import Assignments from './pages/Assignments'
 import TeachingAssignments from './pages/TeachingAssignments'
 import Subjects from './pages/Subjects'
-import Reports  from './pages/Reports'
 import Announcements from './pages/Announcements'
 import Messages  from './pages/Messages'
 import Notifications from './pages/Notifications'
@@ -70,11 +69,6 @@ export default function App() {
         <Route path="/subjects" element={
           <ProtectedRoute allowedRoles={['ADMIN', 'TEACHER', 'PARENT', 'STUDENT']}>
             <Subjects />
-          </ProtectedRoute>
-        } />
-        <Route path="/reports" element={
-          <ProtectedRoute allowedRoles={['ADMIN']}>
-            <Reports />
           </ProtectedRoute>
         } />
 
