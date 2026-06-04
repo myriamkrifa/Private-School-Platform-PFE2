@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   AlertCircle,
   Bell,
   BookOpen,
+  Bot,
   Calendar,
   CheckCircle2,
   Clock3,
@@ -38,6 +40,7 @@ import {
 } from 'recharts'
 import { jsPDF } from 'jspdf'
 import { useAuth } from '../context/AuthContext'
+import { getAiDashboardStats } from '../services/ai.service'
 import API, {
   createAnnouncement,
   createGrade,
@@ -1120,16 +1123,18 @@ function AdminDashboard() {
   const [bulkSummary, setBulkSummary] = useState({ created: 0, failed: 0 })
   const [tuitionData, setTuitionData] = useState([])
   const [emergencyText, setEmergencyText] = useState('')
+  const [aiStats, setAiStats] = useState({ conversationCount: 0, lastReport: null })
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [studentsRes, teachersRes, usersRes, yearsRes, healthRes] = await Promise.all([
+        const [studentsRes, teachersRes, usersRes, yearsRes, healthRes, aiStatsRes] = await Promise.all([
           getAllStudents(),
           getAllTeachers(),
           getAllUsers(),
           getAcademicYears(),
-          API.get('/health')
+          API.get('/health'),
+          getAiDashboardStats().catch(() => ({ data: { data: { conversationCount: 0, lastReport: null } } }))
         ])
 
         const studentList = studentsRes.data?.data || []
@@ -1154,6 +1159,7 @@ function AdminDashboard() {
         ])
 
         setAuditLogs(JSON.parse(localStorage.getItem('auditLogs') || '[]'))
+        setAiStats(aiStatsRes.data?.data || { conversationCount: 0, lastReport: null })
       } finally {
         setLoading(false)
       }
@@ -1282,10 +1288,31 @@ function AdminDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className={cardClass}><SectionTitle icon={GraduationCap} title="Total Students" /><p className="text-3xl font-bold">{studentsCount}</p></div>
         <div className={cardClass}><SectionTitle icon={Users} title="Total Teachers" /><p className="text-3xl font-bold">{teachersCount}</p></div>
         <div className={cardClass}><SectionTitle icon={Wallet} title="Revenue" /><p className="text-3xl font-bold">{simulatedRevenue}</p></div>
+        <div className={cardClass}>
+          <SectionTitle icon={Bot} title="AI Assistant" subtitle="School data insights" />
+          <p className="text-sm text-slate-600">
+            Conversations: <span className="font-semibold text-slate-900">{aiStats.conversationCount}</span>
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            Last report:{' '}
+            <span className="font-semibold text-slate-900">
+              {aiStats.lastReport?.title || 'None yet'}
+            </span>
+          </p>
+          {aiStats.lastReport?.createdAt ? (
+            <p className="text-xs text-slate-400">{new Date(aiStats.lastReport.createdAt).toLocaleString()}</p>
+          ) : null}
+          <Link
+            to="/ai-assistant"
+            className="mt-3 inline-flex rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            Open AI Assistant
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

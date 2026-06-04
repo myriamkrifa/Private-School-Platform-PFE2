@@ -5,6 +5,8 @@ const { protect, authorize } = require('../middlewares/auth.middleware')
 
 router.get('/', protect, academicYearController.getAcademicYears)
 router.post('/', protect, authorize('ADMIN'), academicYearController.createAcademicYear)
+router.patch('/:id/archive', protect, authorize('ADMIN'), academicYearController.archiveAcademicYear)
+router.patch('/:id/restore', protect, authorize('ADMIN'), academicYearController.restoreAcademicYear)
 router.patch('/:id', protect, authorize('ADMIN'), academicYearController.updateAcademicYear)
 router.delete('/:id', protect, authorize('ADMIN'), academicYearController.deleteAcademicYear)
 

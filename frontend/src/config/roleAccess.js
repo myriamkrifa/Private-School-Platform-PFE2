@@ -1,6 +1,7 @@
 import {
   Bell,
   BookOpen,
+  Bot,
   CalendarDays,
   ClipboardList,
   GraduationCap,
@@ -17,24 +18,28 @@ export const dashboardModulesByRole = {
     'Manage classes',
     'Manage academic years',
     'Manage teachers',
+    'AI Assistant insights',
   ],
   TEACHER: [
     'Manage grades',
     'Manage attendance',
     'Manage courses',
-    'Manage parent communication'
+    'Manage parent communication',
+    'AI teaching assistant'
   ],
   PARENT: [
     'View children profiles',
     'View grades',
     'View attendance',
-    'View announcements'
+    'View announcements',
+    'AI family assistant'
   ],
   STUDENT: [
     'Access timetable',
     'Access grades',
     'Access assignments',
-    'Access course materials'
+    'Access course materials',
+    'AI study assistant'
   ]
 }
 
@@ -60,7 +65,8 @@ export const navigationItemsByRole = {
     { icon: BookOpen, label: 'Courses', path: '/courses', section: 'Academic', accent: 'blue' },
     { icon: Megaphone, label: 'Announcements', path: '/announcements', section: 'Communication', accent: 'orange' },
     { icon: Inbox, label: 'Messages', path: '/messages', section: 'Communication', accent: 'blue' },
-    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' }
+    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' },
+    { icon: Bot, label: 'AI Assistant', path: '/ai-assistant', section: 'Tools', accent: 'blue' }
   ],
   TEACHER: [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', section: 'Workspace', accent: 'blue' },
@@ -73,7 +79,8 @@ export const navigationItemsByRole = {
     { icon: BookOpen, label: 'Courses', path: '/courses', section: 'Teaching', accent: 'orange' },
     { icon: Megaphone, label: 'Announcements', path: '/announcements', section: 'Communication', accent: 'blue' },
     { icon: Inbox, label: 'Messages', path: '/messages', section: 'Communication', accent: 'orange' },
-    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' }
+    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' },
+    { icon: Bot, label: 'AI Assistant', path: '/ai-assistant', section: 'Tools', accent: 'blue' }
   ],
   PARENT: [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', section: 'Family', accent: 'blue' },
@@ -83,7 +90,8 @@ export const navigationItemsByRole = {
     { icon: BookOpen, label: 'Courses', path: '/courses', section: 'Family', accent: 'blue' },
     { icon: Megaphone, label: 'Announcements', path: '/announcements', section: 'Communication', accent: 'orange' },
     { icon: Inbox, label: 'Messages', path: '/messages', section: 'Communication', accent: 'blue' },
-    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' }
+    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' },
+    { icon: Bot, label: 'AI Assistant', path: '/ai-assistant', section: 'Tools', accent: 'blue' }
   ],
   STUDENT: [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', section: 'School', accent: 'blue' },
@@ -94,7 +102,8 @@ export const navigationItemsByRole = {
     { icon: ClipboardList, label: 'Assignments', path: '/assignments', section: 'School', accent: 'orange' },
     { icon: BookOpen, label: 'Course Materials', path: '/courses', section: 'School', accent: 'blue' },
     { icon: Megaphone, label: 'Announcements', path: '/announcements', section: 'Communication', accent: 'orange' },
-    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' }
+    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' },
+    { icon: Bot, label: 'AI Assistant', path: '/ai-assistant', section: 'Tools', accent: 'blue' }
   ]
 }
 

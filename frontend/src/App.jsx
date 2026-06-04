@@ -19,6 +19,7 @@ import Subjects from './pages/Subjects'
 import Announcements from './pages/Announcements'
 import Messages  from './pages/Messages'
 import Notifications from './pages/Notifications'
+import AIAssistant from './pages/AIAssistant'
 import ProtectedRoute from './components/ProtectedRoute'
 import { ConfirmDialogProvider } from './context/ConfirmDialogContext'
 
@@ -118,6 +119,11 @@ export default function App() {
         <Route path="/notifications" element={
           <ProtectedRoute allowedRoles={['ADMIN', 'TEACHER', 'PARENT', 'STUDENT']}>
             <Notifications />
+          </ProtectedRoute>
+        } />
+        <Route path="/ai-assistant" element={
+          <ProtectedRoute allowedRoles={['ADMIN', 'TEACHER', 'PARENT', 'STUDENT']}>
+            <AIAssistant />
           </ProtectedRoute>
         } />
 

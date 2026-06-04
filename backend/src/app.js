@@ -1,10 +1,14 @@
 require('dotenv').config()
+require('./config/firebase')
+const { isEmailConfigured } = require('./services/email.service')
+
 const express = require('express')
 const cors    = require('cors')
 
 const authRoutes = require('./routes/auth.routes')
 const studentRoutes = require('./routes/student.routes')
 const teacherRoutes = require('./routes/teacher.routes')
+const parentRoutes = require('./routes/parent.routes')
 const classRoutes = require('./routes/class.routes')
 const userRoutes = require('./routes/user.routes')
 const academicYearRoutes = require('./routes/academicYear.routes')
@@ -20,6 +24,7 @@ const teachingAssignmentRoutes = require('./routes/teachingAssignment.routes')
 const teacherWorkRoutes = require('./routes/teacherWork.routes')
 const subjectRoutes = require('./routes/subject.routes')
 const dashboardRoutes = require('./routes/dashboard.routes')
+const aiRoutes = require('./routes/ai.routes')
 
 const app  = express()
 const PORT = process.env.PORT || 5000
@@ -42,6 +47,7 @@ app.use(express.json())
 app.use('/api/auth', authRoutes)
 app.use('/api/students', studentRoutes)
 app.use('/api/teachers', teacherRoutes)
+app.use('/api/parents', parentRoutes)
 app.use('/api/classes', classRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/academic-years', academicYearRoutes)
@@ -59,6 +65,7 @@ app.use('/api/subjects', subjectRoutes)
 // /api/admin/dashboard, /api/teacher/dashboard, /api/parent/dashboard,
 // /api/student/dashboard).
 app.use('/api', dashboardRoutes)
+app.use('/api/ai', aiRoutes)
 // Teacher workspace endpoints (must be mounted after dashboardRoutes so
 // /api/teacher/dashboard hits the dashboard router first).
 app.use('/api/teacher', teacherWorkRoutes)
@@ -76,5 +83,6 @@ app.use((req, res) => {
 // ── Start server ─────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n🚀 Server running on http://localhost:${PORT}`)
-  console.log(`📡 API: http://localhost:${PORT}/api/auth\n`)
+  console.log(`📡 API: http://localhost:${PORT}/api/auth`)
+  console.log(isEmailConfigured() ? '📧 SMTP email: enabled' : '📧 SMTP email: disabled (set SMTP_* in .env)\n')
 })

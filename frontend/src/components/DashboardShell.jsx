@@ -10,7 +10,7 @@ function SidebarAddButton({ createType, onClick }) {
   return (
     <button
       type="button"
-      className={`sidebar-add-btn ${isStudent ? 'sidebar-add-btn--blue' : 'sidebar-add-btn--orange'}`}
+      className="sidebar-add-btn sidebar-add-btn--blue"
       title={isStudent ? 'Create student' : 'Create teacher'}
       aria-label={isStudent ? 'Create student' : 'Create teacher'}
       onClick={onClick}

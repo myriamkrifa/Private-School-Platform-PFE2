@@ -102,9 +102,64 @@ Class report payload (excerpt):
 | GET    | `/academic-years`              | any    |
 | POST   | `/academic-years`              | ADMIN  |
 | PATCH  | `/academic-years/:id`          | ADMIN  |
+| PATCH  | `/academic-years/:id/archive`  | ADMIN  |
+| PATCH  | `/academic-years/:id/restore` | ADMIN  |
 | DELETE | `/academic-years/:id`          | ADMIN  |
 
-To activate a year, send `PATCH /academic-years/:id` with `{ "isActive": true }`.
+Query params for `GET`:
+
+- Default: non-archived years only
+- `?includeArchived=true` — all years (active + archived)
+- `?archived=true` — archived years only
+
+To activate a year, send `PATCH /academic-years/:id` with `{ "isActive": true }`. Only one non-archived year can be active at a time.
+
+Archiving sets `isArchived` and `archivedAt` while preserving all linked classes, grades, attendance, assignments, and reports as read-only history. Archived years cannot be edited or deleted.
+
+## AI Assistant (all authenticated roles)
+
+Role-based data scoping: ADMIN (full school), TEACHER (assigned classes), PARENT (linked children), STUDENT (own data).
+
+**Dual mode (automatic intent detection):**
+- School-related questions → database context for the user’s role
+- General questions → OpenAI without school data (requires `OPENAI_API_KEY`)
+- Mixed questions → both sources combined
+
+Works in school-only mode without OpenAI; General AI requires the API key.
+
+| Method | Endpoint                    | Roles  |
+|--------|-----------------------------|--------|
+| GET    | `/ai/capabilities`          | any authenticated |
+| GET    | `/ai/status`                | any authenticated |
+| GET    | `/ai/dashboard-stats`       | any authenticated |
+| GET    | `/ai/sessions`              | any authenticated |
+| GET    | `/ai/sessions/:id`          | any authenticated |
+| DELETE | `/ai/sessions/:id`          | any authenticated |
+| POST   | `/ai/chat`                  | any authenticated |
+| GET    | `/ai/reports`               | any authenticated |
+| GET    | `/ai/reports/:id`           | any authenticated |
+| POST   | `/ai/reports/generate`      | any authenticated (role-limited report types) |
+
+Chat body:
+
+```json
+{ "message": "How many students are registered?", "sessionId": 1 }
+```
+
+`sessionId` is optional; omit to start a new conversation.
+
+Report generation body:
+
+```json
+{ "reportType": "ATTENDANCE_MONTHLY" }
+```
+
+Report types by role:
+
+- **ADMIN:** `ATTENDANCE_MONTHLY`, `STUDENT_ENROLLMENT`, `TEACHER_WORKLOAD`, `UNPAID_FEES`
+- **TEACHER:** `LESSON_PLAN`, `CLASS_QUIZ`, `CLASS_HOMEWORK`, `CLASS_PERFORMANCE`
+- **PARENT:** `CHILD_PROGRESS`, `CHILD_ATTENDANCE`
+- **STUDENT:** `STUDY_PLAN`, `REVISION_PLAN`
 
 ## Subjects (Course == Subject)
 

@@ -1,6 +1,7 @@
 const bcrypt    = require('bcryptjs')
 const jwt       = require('jsonwebtoken')
 const prisma    = require('../prisma')
+const admin     = require('../config/firebase')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_me'
 const ALLOWED_ROLES = ['ADMIN', 'STUDENT', 'TEACHER', 'PARENT']
@@ -38,8 +39,10 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 6 characters.' })
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase()
+
     // 2. Check if email already exists
-    const existing = await prisma.user.findUnique({ where: { email } })
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (existing) {
       return res.status(409).json({ message: 'An account with this email already exists.' })
     }
@@ -47,11 +50,17 @@ const register = async (req, res) => {
     // 3. Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // 4. Create user and matching role profile when needed
+    // 4. Create user (inactive until admin approval) and matching role profile when needed
     const user = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
-        data: { name, email, password: hashedPassword, role },
-        select: { id: true, name: true, email: true, role: true, createdAt: true }
+        data: {
+          name: String(name).trim(),
+          email: normalizedEmail,
+          password: hashedPassword,
+          role,
+          isActive: false
+        },
+        select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true }
       })
 
       if (role === 'STUDENT') {
@@ -79,9 +88,11 @@ const register = async (req, res) => {
       return createdUser
     })
 
-    // 5. Generate token and respond
-    const token = generateToken(user)
-    return res.status(201).json({ user, token })
+    return res.status(201).json({
+      message: 'Registration submitted. An administrator must approve your account before you can sign in.',
+      pendingApproval: true,
+      user
+    })
 
   } catch (error) {
     console.error('Register error:', error)
@@ -118,6 +129,12 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' })
     }
 
+    if (!user.isActive) {
+      return res.status(403).json({
+        message: 'Your account is pending administrator approval. You will receive an email once approved.'
+      })
+    }
+
     // 4. Return token (never return the password)
     const { password: _, ...userWithoutPassword } = user
     const token = generateToken(userWithoutPassword)
@@ -131,6 +148,103 @@ const login = async (req, res) => {
       })
     }
     return res.status(500).json({ message: 'Server error. Please try again.' })
+  }
+}
+
+// ─────────────────────────────────────────────
+// POST /api/auth/firebase-google
+// ─────────────────────────────────────────────
+const logFirebaseAuthError = (context, error) => {
+  console.error(`[Firebase Google login] ${context}:`, {
+    name: error?.name,
+    code: error?.code,
+    message: error?.message,
+    errorInfo: error?.errorInfo
+  })
+  if (error?.stack) {
+    console.error(error.stack)
+  }
+}
+
+const firebaseGoogleLogin = async (req, res) => {
+  try {
+    const { idToken } = req.body
+
+    if (!idToken) {
+      console.warn('[Firebase Google login] Missing idToken in request body.')
+      return res.status(400).json({ message: 'Firebase idToken is required.' })
+    }
+
+    if (!admin.apps.length) {
+      console.error('[Firebase Google login] Admin SDK is not initialized. Check service account file and server boot logs.')
+      return res.status(503).json({
+        message: 'Google SSO is not configured on the server. Contact administrator.'
+      })
+    }
+
+    let decodedToken
+    try {
+      decodedToken = await admin.auth().verifyIdToken(idToken)
+    } catch (verifyError) {
+      logFirebaseAuthError('ID token verification failed', verifyError)
+      return res.status(401).json({ message: 'Google authentication failed. Invalid or expired token.' })
+    }
+
+    const email = decodedToken?.email
+    const firebaseUid = decodedToken?.uid
+
+    if (!email || !firebaseUid) {
+      console.error('[Firebase Google login] Token verified but missing email or uid:', {
+        uid: firebaseUid,
+        email: email ?? null
+      })
+      return res.status(401).json({ message: 'Invalid Google identity token.' })
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase()
+    console.log(`[Firebase Google login] Token verified for ${normalizedEmail} (uid: ${firebaseUid})`)
+
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
+
+    if (!user) {
+      console.warn(`[Firebase Google login] No authorized user for email: ${normalizedEmail}`)
+      return res.status(403).json({ message: 'User account not authorized by school administrator.' })
+    }
+
+    if (!user.isActive) {
+      console.warn(`[Firebase Google login] Inactive user attempted sign-in: ${normalizedEmail}`)
+      return res.status(403).json({ message: 'This account has been deactivated. Contact your administrator.' })
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { firebaseUid },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        identityCardNumber: true,
+        phoneNumber: true,
+        mustChangePassword: true,
+        firebaseUid: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    })
+
+    const token = generateToken(updatedUser)
+    console.log(`[Firebase Google login] Success for ${normalizedEmail} (role: ${updatedUser.role})`)
+    return res.status(200).json({ user: updatedUser, token })
+  } catch (error) {
+    logFirebaseAuthError('Unexpected error', error)
+    if (isPrismaInitError(error)) {
+      return res.status(503).json({
+        message: 'Database connection failed. Check DATABASE_URL credentials and restart backend.'
+      })
+    }
+    return res.status(500).json({ message: 'Google authentication failed. Please try again.' })
   }
 }
 
@@ -209,4 +323,4 @@ const changePasswordFirstLogin = async (req, res) => {
   }
 }
 
-module.exports = { register, login, getMe, logout, changePasswordFirstLogin }
+module.exports = { register, login, firebaseGoogleLogin, getMe, logout, changePasswordFirstLogin }

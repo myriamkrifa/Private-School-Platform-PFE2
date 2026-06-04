@@ -2,6 +2,7 @@ const prisma = require('../prisma')
 const bcrypt = require('bcryptjs')
 const crypto = require('crypto')
 const { createAuditLog } = require('./audit.controller')
+const { sendAccountApprovedEmail, sendParentAccountEmail } = require('../services/email.service')
 
 const ALLOWED_ROLES = ['ADMIN', 'TEACHER', 'PARENT', 'STUDENT']
 
@@ -22,13 +23,61 @@ const sanitizeEmailLocalPart = (value) => {
 const listUsers = async (_req, res) => {
   try {
     const users = await prisma.user.findMany({
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true },
       orderBy: { id: 'asc' }
     })
 
     return res.status(200).json({ users })
   } catch (error) {
     console.error('List users error:', error)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+const approveUser = async (req, res) => {
+  try {
+    const userId = Number.parseInt(req.params.id, 10)
+
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ message: 'Invalid user id.' })
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { id: userId } })
+    if (!existingUser) {
+      return res.status(404).json({ message: 'User not found.' })
+    }
+
+    if (existingUser.isActive) {
+      return res.status(400).json({ message: 'User is already approved and active.' })
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { isActive: true },
+      select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true }
+    })
+
+    await createAuditLog({
+      actorId: req.user?.id,
+      action: 'USER_APPROVE',
+      entityType: 'User',
+      entityId: updatedUser.id,
+      before: { isActive: false },
+      after: { isActive: true }
+    })
+
+    const emailResult = await sendAccountApprovedEmail({
+      to: updatedUser.email,
+      name: updatedUser.name
+    })
+
+    return res.status(200).json({
+      message: 'User approved successfully.',
+      user: updatedUser,
+      emailNotification: emailResult
+    })
+  } catch (error) {
+    console.error('Approve user error:', error)
     return res.status(500).json({ message: 'Server error.' })
   }
 }
@@ -85,7 +134,8 @@ const provisionStudentWithParent = async (req, res) => {
       studentEmail,
       parentName,
       parentIdentityCardNumber,
-      parentPhoneNumber
+      parentPhoneNumber,
+      parentEmail
     } = req.body
 
     if (!studentFullName || !studentEmail || !parentName || !parentIdentityCardNumber || !parentPhoneNumber) {
@@ -93,6 +143,10 @@ const provisionStudentWithParent = async (req, res) => {
         message: 'Please provide studentFullName, studentEmail, parentName, parentIdentityCardNumber, and parentPhoneNumber.'
       })
     }
+
+    const normalizedParentEmail = parentEmail
+      ? String(parentEmail).trim().toLowerCase()
+      : null
 
     const normalizedStudentEmail = String(studentEmail).trim().toLowerCase()
     const normalizedParentIdentity = normalizeIdentityCardNumber(parentIdentityCardNumber)
@@ -163,7 +217,8 @@ const provisionStudentWithParent = async (req, res) => {
             password: parentHashedPassword,
             role: 'PARENT',
             identityCardNumber: normalizedParentIdentity,
-            phoneNumber: normalizedParentPhone
+            phoneNumber: normalizedParentPhone,
+            mustChangePassword: true
           },
           select: {
             id: true,
@@ -222,6 +277,15 @@ const provisionStudentWithParent = async (req, res) => {
         email: created.parentUser.email,
         password: parentPlainPassword
       }
+
+      const parentNotifyEmail = normalizedParentEmail || created.parentUser.email
+      response.emailNotification = await sendParentAccountEmail({
+        to: parentNotifyEmail,
+        parentName: created.parentUser.name,
+        loginEmail: created.parentUser.email,
+        temporaryPassword: parentPlainPassword,
+        studentName: created.studentUser.name
+      })
     }
 
     return res.status(201).json(response)
@@ -295,4 +359,10 @@ const provisionTeacher = async (req, res) => {
   }
 }
 
-module.exports = { listUsers, updateUserRole, provisionStudentWithParent, provisionTeacher }
+module.exports = {
+  listUsers,
+  approveUser,
+  updateUserRole,
+  provisionStudentWithParent,
+  provisionTeacher
+}

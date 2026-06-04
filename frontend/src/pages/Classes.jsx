@@ -77,6 +77,26 @@ export default function Classes() {
     }
   }
 
+  const handleDeleteClass = async (kelas) => {
+    const confirmed = await confirm({
+      title: 'Delete class',
+      message: `Delete class "${kelas.name}"? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      variant: 'danger'
+    })
+    if (!confirmed) return
+
+    setError('')
+    try {
+      await deleteClass(kelas.id)
+      await refresh()
+      if (selectedClass?.id === kelas.id) setSelectedClass(null)
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete class.')
+    }
+  }
+
   const selectedClassStudentOptions = useMemo(() => {
     const currentIds = new Set((selectedClass?.students || []).map((s) => s.id))
     return students.filter((s) => !currentIds.has(s.id))
@@ -90,6 +110,7 @@ export default function Classes() {
         <div className="page-card"><p>No classes found.</p></div>
       ) : (
         <section className="page-card page-table-card">
+          {error ? <p className="field-error" style={{ marginBottom: '0.75rem' }}>{error}</p> : null}
           <table className="data-table">
             <thead>
               <tr>
@@ -110,22 +131,7 @@ export default function Classes() {
                   <td>
                     <button className="btn btn-primary" onClick={() => openDetails(kelas.id)}>Details</button>
                     {isAdmin ? (
-                      <button
-                        className="btn"
-                        onClick={async () => {
-                          const confirmed = await confirm({
-                            title: 'Delete class',
-                            message: `Delete class "${kelas.name}"? This action cannot be undone.`,
-                            confirmLabel: 'Delete',
-                            cancelLabel: 'Cancel',
-                            variant: 'danger'
-                          })
-                          if (!confirmed) return
-                          await deleteClass(kelas.id)
-                          await refresh()
-                          if (selectedClass?.id === kelas.id) setSelectedClass(null)
-                        }}
-                      >
+                      <button className="btn" type="button" onClick={() => handleDeleteClass(kelas)}>
                         Delete
                       </button>
                     ) : null}

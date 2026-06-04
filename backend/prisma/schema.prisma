@@ -67,6 +67,33 @@ enum TeacherStatus {
   ON_LEAVE
 }
 
+enum FeeStatus {
+  PAID
+  UNPAID
+  PARTIAL
+}
+
+enum AiMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum AiReportType {
+  ATTENDANCE_MONTHLY
+  STUDENT_ENROLLMENT
+  TEACHER_WORKLOAD
+  UNPAID_FEES
+  LESSON_PLAN
+  CLASS_QUIZ
+  CLASS_HOMEWORK
+  CLASS_PERFORMANCE
+  CHILD_PROGRESS
+  CHILD_ATTENDANCE
+  STUDY_PLAN
+  REVISION_PLAN
+}
+
 // ─────────────────────────────────────────────
 //  Core identity
 // ─────────────────────────────────────────────
@@ -80,6 +107,7 @@ model User {
   isActive            Boolean   @default(true)
   identityCardNumber  String?   @unique
   phoneNumber         String?
+  firebaseUid         String?   @unique
   mustChangePassword  Boolean   @default(false)
 
   studentProfile      Student?
@@ -95,6 +123,8 @@ model User {
   courses             Course[]        @relation("CourseTeacher")
   authoredAssignments Assignment[]    @relation("TeacherAssignments")
   auditLogs           AuditLog[]      @relation("AuditActor")
+  aiChatSessions      AiChatSession[]
+  aiGeneratedReports  AiGeneratedReport[]
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -125,9 +155,29 @@ model Student {
   attendances     Attendance[]
   submissions     Submission[]
   assignmentRecipients AssignmentRecipient[]
+  fees                 StudentFee[]
 
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+}
+
+model StudentFee {
+  id          Int       @id @default(autoincrement())
+  studentId   Int
+  label       String
+  amount      Float
+  dueDate     DateTime?
+  status      FeeStatus @default(UNPAID)
+  paidAt      DateTime?
+  notes       String?   @db.Text
+
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([studentId])
+  @@index([status])
 }
 
 model Teacher {
@@ -172,13 +222,15 @@ model ParentStudent {
 // ─────────────────────────────────────────────
 
 model AcademicYear {
-  id        Int       @id @default(autoincrement())
-  name      String    @unique
-  startDate DateTime
-  endDate   DateTime
-  isActive  Boolean   @default(false)
-  classes   Class[]
-  createdAt DateTime  @default(now())
+  id         Int       @id @default(autoincrement())
+  name       String    @unique
+  startDate  DateTime
+  endDate    DateTime
+  isActive   Boolean   @default(false)
+  isArchived Boolean   @default(false)
+  archivedAt DateTime?
+  classes    Class[]
+  createdAt  DateTime  @default(now())
 }
 
 model Class {
@@ -429,4 +481,45 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([actorId])
+}
+
+// ─────────────────────────────────────────────
+//  AI Assistant
+// ─────────────────────────────────────────────
+
+model AiChatSession {
+  id        Int             @id @default(autoincrement())
+  userId    Int
+  userRole  Role    @default(ADMIN)
+  title     String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  AiChatMessage[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([userId])
+}
+
+model AiChatMessage {
+  id        Int           @id @default(autoincrement())
+  sessionId Int
+  role      AiMessageRole
+  content   String        @db.Text
+  session   AiChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@index([sessionId])
+}
+
+model AiGeneratedReport {
+  id        Int          @id @default(autoincrement())
+  userId    Int
+  type      AiReportType
+  title     String
+  content   String       @db.Text
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@index([userId])
+  @@index([type])
 }

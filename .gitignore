@@ -10,6 +10,10 @@ dist-ssr/
 # Environment variables
 .env
 .env.local
+
+# Firebase / GCP credentials (never commit)
+backend/src/config/firebase-service-account.json
+**/firebase-service-account.json
 .env.development.local
 .env.test.local
 .env.production.local

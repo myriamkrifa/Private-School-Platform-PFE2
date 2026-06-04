@@ -38,7 +38,17 @@ exports.getMyChildren = async (req, res) => {
 exports.getAllStudents = async (req, res) => {
   try {
     const students = await prisma.student.findMany({
-      select: { id: true, userId: true, name: true, email: true, grade: true, classId: true }
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        email: true,
+        grade: true,
+        classId: true,
+        status: true,
+        class: { select: { id: true, name: true } }
+      },
+      orderBy: { name: 'asc' }
     })
     res.json({ success: true, data: students })
   } catch (error) {
@@ -116,6 +126,136 @@ exports.createStudent = async (req, res) => {
     res.status(201).json({ success: true, data: student, message: 'Student created.' })
   } catch (error) {
     res.status(500).json({ message: 'Error creating student.', error: error.message })
+  }
+}
+
+const STUDENT_STATUSES = ['ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED']
+
+exports.updateStudent = async (req, res) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10)
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: 'Invalid student id.' })
+    }
+
+    const existing = await prisma.student.findUnique({ where: { id } })
+    if (!existing) {
+      return res.status(404).json({ message: 'Student not found.' })
+    }
+
+    const {
+      name,
+      email,
+      grade,
+      classId,
+      firstName,
+      lastName,
+      birthDate,
+      gender,
+      address,
+      phone,
+      enrollmentDate,
+      status
+    } = req.body
+
+    const data = {}
+
+    if (name !== undefined) {
+      const trimmed = String(name).trim()
+      if (!trimmed) return res.status(400).json({ message: 'Name is required.' })
+      data.name = trimmed
+    }
+    if (email !== undefined) {
+      const trimmed = String(email).trim()
+      if (!trimmed) return res.status(400).json({ message: 'Email is required.' })
+      data.email = trimmed
+    }
+    if (grade !== undefined) {
+      const trimmed = String(grade).trim()
+      if (!trimmed) return res.status(400).json({ message: 'Grade is required.' })
+      data.grade = trimmed
+    }
+    if (firstName !== undefined) {
+      data.firstName = firstName && String(firstName).trim() ? String(firstName).trim() : null
+    }
+    if (lastName !== undefined) {
+      data.lastName = lastName && String(lastName).trim() ? String(lastName).trim() : null
+    }
+    if (gender !== undefined) {
+      data.gender = gender && String(gender).trim() ? String(gender).trim() : null
+    }
+    if (address !== undefined) {
+      data.address = address && String(address).trim() ? String(address).trim() : null
+    }
+    if (phone !== undefined) {
+      data.phone = phone && String(phone).trim() ? String(phone).trim() : null
+    }
+    if (birthDate !== undefined) {
+      data.birthDate = birthDate ? new Date(birthDate) : null
+      if (birthDate && Number.isNaN(data.birthDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid birth date.' })
+      }
+    }
+    if (enrollmentDate !== undefined) {
+      data.enrollmentDate = enrollmentDate ? new Date(enrollmentDate) : null
+      if (enrollmentDate && Number.isNaN(data.enrollmentDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid enrollment date.' })
+      }
+    }
+    if (status !== undefined) {
+      if (!STUDENT_STATUSES.includes(status)) {
+        return res.status(400).json({ message: 'Invalid student status.' })
+      }
+      data.status = status
+    }
+    if (classId !== undefined) {
+      if (classId === null || classId === '' || classId === 'none') {
+        data.classId = null
+      } else {
+        const parsedClassId = Number.parseInt(classId, 10)
+        if (!Number.isInteger(parsedClassId) || parsedClassId <= 0) {
+          return res.status(400).json({ message: 'Invalid class.' })
+        }
+        const klass = await prisma.class.findUnique({ where: { id: parsedClassId } })
+        if (!klass) {
+          return res.status(400).json({ message: 'Class not found.' })
+        }
+        data.classId = parsedClassId
+      }
+    }
+
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ message: 'No fields to update.' })
+    }
+
+    const student = await prisma.$transaction(async (tx) => {
+      const updated = await tx.student.update({
+        where: { id },
+        data,
+        include: {
+          class: { select: { id: true, name: true } }
+        }
+      })
+
+      if (existing.userId && (data.name || data.email)) {
+        const userData = {}
+        if (data.name) userData.name = data.name
+        if (data.email) userData.email = data.email
+        await tx.user.update({
+          where: { id: existing.userId },
+          data: userData
+        })
+      }
+
+      return updated
+    })
+
+    res.json({ success: true, data: student, message: 'Student updated.' })
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'Email already in use.' })
+    }
+    res.status(500).json({ message: 'Error updating student.', error: error.message })
   }
 }
 

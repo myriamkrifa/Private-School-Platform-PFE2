@@ -39,7 +39,7 @@ exports.getAdminDashboard = async (_req, res) => {
       prisma.user.count({ where: { role: 'PARENT' } }),
       prisma.class.count(),
       prisma.course.count(),
-      prisma.academicYear.findFirst({ where: { isActive: true } }),
+      prisma.academicYear.findFirst({ where: { isActive: true, isArchived: false } }),
       prisma.attendance.count({
         where: { status: 'ABSENT', date: { gte: dayStart, lte: dayEnd } }
       }),
