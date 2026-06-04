@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import DashboardShell from '../components/DashboardShell'
 import { useAuth } from '../context/AuthContext'
+import { useConfirm } from '../context/ConfirmDialogContext'
 import {
   createSubject,
   deleteSubject,
@@ -18,6 +19,7 @@ const initialForm = {
 
 export default function Subjects() {
   const { user } = useAuth()
+  const { confirm } = useConfirm()
   const isAdmin = user?.role === 'ADMIN'
 
   const [subjects, setSubjects] = useState([])
@@ -96,7 +98,14 @@ export default function Subjects() {
 
   const handleDelete = async (subject) => {
     if (!isAdmin) return
-    if (!window.confirm(`Delete subject "${subject.title}"?`)) return
+    const confirmed = await confirm({
+      title: 'Delete subject',
+      message: `Delete subject "${subject.title}"? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      variant: 'danger'
+    })
+    if (!confirmed) return
     setBusy(true)
     setError('')
     try {

@@ -47,6 +47,16 @@ export default function Register() {
     try {
       const { confirmPassword, ...payload } = form
       const res = await registerUser(payload)
+      if (res.data?.pendingApproval) {
+        navigate('/login', {
+          state: {
+            message:
+              res.data.message ||
+              'Registration submitted. Wait for administrator approval before signing in.'
+          }
+        })
+        return
+      }
       login(res.data.user, res.data.token)
       navigate('/dashboard')
     } catch (err) {

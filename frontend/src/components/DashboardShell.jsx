@@ -2,16 +2,35 @@ import { useMemo, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Bell, LogOut } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { navigationItemsByRole } from '../config/roleAccess'
+import { CreateAccountProvider, useCreateAccount } from '../context/CreateAccountContext'
+import { groupNavItemsBySection, navigationItemsByRole } from '../config/roleAccess'
 
-export default function DashboardShell({ title, subtitle, children }) {
+function SidebarAddButton({ createType, onClick }) {
+  const isStudent = createType === 'STUDENT'
+  return (
+    <button
+      type="button"
+      className={`sidebar-add-btn ${isStudent ? 'sidebar-add-btn--blue' : 'sidebar-add-btn--orange'}`}
+      title={isStudent ? 'Create student' : 'Create teacher'}
+      aria-label={isStudent ? 'Create student' : 'Create teacher'}
+      onClick={onClick}
+    >
+      +
+    </button>
+  )
+}
+
+function DashboardShellContent({ title, subtitle, children }) {
   const { user, logout } = useAuth()
+  const { openCreateModal } = useCreateAccount()
   const navigate = useNavigate()
   const [profileOpen, setProfileOpen] = useState(false)
+  const isAdmin = user?.role === 'ADMIN'
 
   const navItems = (navigationItemsByRole[user?.role] || navigationItemsByRole.STUDENT).filter(
     (item) => item.label !== 'Notifications'
   )
+  const navSections = useMemo(() => groupNavItemsBySection(navItems), [navItems])
 
   const initials = useMemo(() => {
     return user?.name
@@ -30,40 +49,54 @@ export default function DashboardShell({ title, subtitle, children }) {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <div className="flex min-h-screen">
-        <aside className="hidden w-72 border-r border-slate-200 bg-white shadow-sm md:flex md:flex-col">
-          <div className="flex items-center border-b border-slate-200 px-4 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-white font-bold">
-                PS
-              </div>
-              <div>
-                <p className="font-semibold leading-none">Private School</p>
-                <p className="text-xs text-slate-500">ERP Platform</p>
-              </div>
+        <aside className="erp-sidebar hidden md:flex md:flex-col">
+          <div className="erp-sidebar-brand">
+            <div className="erp-sidebar-logo">PS</div>
+            <div>
+              <p className="font-semibold leading-none text-slate-900">Private School</p>
+              <p className="text-xs text-slate-500">ERP Platform</p>
             </div>
           </div>
 
-          <nav className="flex-1 space-y-1 p-3">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                      isActive
-                        ? 'bg-sky-100 text-sky-800'
-                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                    }`
-                  }
-                >
-                  <Icon size={18} />
-                  <span>{item.label}</span>
-                </NavLink>
-              )
-            })}
+          <nav className="erp-sidebar-nav flex-1 overflow-y-auto">
+            {navSections.map(({ section, items }) => (
+              <div key={section} className="erp-sidebar-section">
+                <p className="erp-sidebar-section-title">{section}</p>
+                <ul className="space-y-1">
+                  {items.map((item) => {
+                    const Icon = item.icon
+                    const accent = item.accent || 'neutral'
+                    const showCreateButton = isAdmin && item.createType
+
+                    return (
+                      <li key={item.path}>
+                        <div className={`erp-sidebar-row erp-sidebar-row--${accent}`}>
+                          <NavLink
+                            to={item.path}
+                            className={({ isActive }) =>
+                              `erp-sidebar-link ${isActive ? 'is-active' : ''} erp-sidebar-link--${accent}`
+                            }
+                          >
+                            <span className={`erp-sidebar-icon erp-sidebar-icon--${accent}`}>
+                              <Icon size={18} strokeWidth={2} />
+                            </span>
+                            <span className="truncate">{item.label}</span>
+                          </NavLink>
+                          {showCreateButton ? (
+                            <SidebarAddButton
+                              createType={item.createType}
+                              onClick={() => openCreateModal(item.createType)}
+                            />
+                          ) : null}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            ))}
           </nav>
+
         </aside>
 
         <div className="flex min-h-screen flex-1 flex-col">
@@ -89,7 +122,7 @@ export default function DashboardShell({ title, subtitle, children }) {
                     onClick={() => setProfileOpen((prev) => !prev)}
                     className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 hover:bg-slate-50"
                   >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-sky-600 to-[#e97828] text-xs font-semibold text-white">
                       {initials}
                     </span>
                     <span className="hidden text-sm font-medium md:block">{user?.name || 'User'}</span>
@@ -122,5 +155,13 @@ export default function DashboardShell({ title, subtitle, children }) {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function DashboardShell(props) {
+  return (
+    <CreateAccountProvider>
+      <DashboardShellContent {...props} />
+    </CreateAccountProvider>
   )
 }

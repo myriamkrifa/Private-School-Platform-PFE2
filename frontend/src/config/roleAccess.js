@@ -40,56 +40,79 @@ export const dashboardModulesByRole = {
 
 export const navigationItemsByRole = {
   ADMIN: [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: Users, label: 'Users', path: '/users' },
-    { icon: GraduationCap, label: 'Students', path: '/students' },
-    { icon: Users, label: 'Teachers', path: '/teachers' },
-    { icon: Users, label: 'Parents', path: '/parents' },
-    { icon: CalendarDays, label: 'Academic Years', path: '/academic-years' },
-    { icon: School, label: 'Classes', path: '/classes' },
-    { icon: BookOpen, label: 'Subjects', path: '/subjects' },
-    { icon: ClipboardList, label: 'Teaching Assignments', path: '/teaching-assignments' },
-    { icon: GraduationCap, label: 'Grades', path: '/grades' },
-    { icon: CalendarDays, label: 'Attendance', path: '/attendance' },
-    { icon: BookOpen, label: 'Courses', path: '/courses' },
-    { icon: Megaphone, label: 'Announcements', path: '/announcements' },
-    { icon: Inbox, label: 'Messages', path: '/messages' },
-    { icon: Bell, label: 'Notifications', path: '/notifications' }
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', section: 'Overview', accent: 'neutral' },
+    { icon: Users, label: 'Users', path: '/users', section: 'People', accent: 'blue' },
+    { icon: GraduationCap, label: 'Students', path: '/students', section: 'People', accent: 'blue' },
+    { icon: Users, label: 'Teachers', path: '/teachers', section: 'People', accent: 'orange' },
+    { icon: Users, label: 'Parents', path: '/parents', section: 'People', accent: 'orange' },
+    { icon: CalendarDays, label: 'Academic Years', path: '/academic-years', section: 'Academic', accent: 'blue' },
+    { icon: School, label: 'Classes', path: '/classes', section: 'Academic', accent: 'orange' },
+    { icon: BookOpen, label: 'Subjects', path: '/subjects', section: 'Academic', accent: 'blue' },
+    {
+      icon: ClipboardList,
+      label: 'Teaching Assignments',
+      path: '/teaching-assignments',
+      section: 'Academic',
+      accent: 'orange'
+    },
+    { icon: GraduationCap, label: 'Grades', path: '/grades', section: 'Academic', accent: 'blue' },
+    { icon: CalendarDays, label: 'Attendance', path: '/attendance', section: 'Academic', accent: 'orange' },
+    { icon: BookOpen, label: 'Courses', path: '/courses', section: 'Academic', accent: 'blue' },
+    { icon: Megaphone, label: 'Announcements', path: '/announcements', section: 'Communication', accent: 'orange' },
+    { icon: Inbox, label: 'Messages', path: '/messages', section: 'Communication', accent: 'blue' },
+    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' }
   ],
   TEACHER: [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: School, label: 'My Classes', path: '/classes' },
-    { icon: GraduationCap, label: 'Students', path: '/students' },
-    { icon: BookOpen, label: 'Subjects', path: '/subjects' },
-    { icon: GraduationCap, label: 'Grades', path: '/grades' },
-    { icon: CalendarDays, label: 'Attendance', path: '/attendance' },
-    { icon: ClipboardList, label: 'Assignments', path: '/assignments' },
-    { icon: BookOpen, label: 'Courses', path: '/courses' },
-    { icon: Megaphone, label: 'Announcements', path: '/announcements' },
-    { icon: Inbox, label: 'Messages', path: '/messages' },
-    { icon: Bell, label: 'Notifications', path: '/notifications' }
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', section: 'Workspace', accent: 'blue' },
+    { icon: School, label: 'My Classes', path: '/classes', section: 'Workspace', accent: 'orange' },
+    { icon: GraduationCap, label: 'Students', path: '/students', section: 'Workspace', accent: 'blue' },
+    { icon: BookOpen, label: 'Subjects', path: '/subjects', section: 'Teaching', accent: 'orange' },
+    { icon: GraduationCap, label: 'Grades', path: '/grades', section: 'Teaching', accent: 'blue' },
+    { icon: CalendarDays, label: 'Attendance', path: '/attendance', section: 'Teaching', accent: 'orange' },
+    { icon: ClipboardList, label: 'Assignments', path: '/assignments', section: 'Teaching', accent: 'blue' },
+    { icon: BookOpen, label: 'Courses', path: '/courses', section: 'Teaching', accent: 'orange' },
+    { icon: Megaphone, label: 'Announcements', path: '/announcements', section: 'Communication', accent: 'blue' },
+    { icon: Inbox, label: 'Messages', path: '/messages', section: 'Communication', accent: 'orange' },
+    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' }
   ],
   PARENT: [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: GraduationCap, label: 'Grades', path: '/grades' },
-    { icon: CalendarDays, label: 'Attendance', path: '/attendance' },
-    { icon: ClipboardList, label: 'Assignments', path: '/assignments' },
-    { icon: BookOpen, label: 'Courses', path: '/courses' },
-    { icon: Megaphone, label: 'Announcements', path: '/announcements' },
-    { icon: Inbox, label: 'Messages', path: '/messages' },
-    { icon: Bell, label: 'Notifications', path: '/notifications' }
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', section: 'Family', accent: 'blue' },
+    { icon: GraduationCap, label: 'Grades', path: '/grades', section: 'Family', accent: 'orange' },
+    { icon: CalendarDays, label: 'Attendance', path: '/attendance', section: 'Family', accent: 'blue' },
+    { icon: ClipboardList, label: 'Assignments', path: '/assignments', section: 'Family', accent: 'orange' },
+    { icon: BookOpen, label: 'Courses', path: '/courses', section: 'Family', accent: 'blue' },
+    { icon: Megaphone, label: 'Announcements', path: '/announcements', section: 'Communication', accent: 'orange' },
+    { icon: Inbox, label: 'Messages', path: '/messages', section: 'Communication', accent: 'blue' },
+    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' }
   ],
   STUDENT: [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: School, label: 'My Class', path: '/classes' },
-    { icon: BookOpen, label: 'Subjects', path: '/subjects' },
-    { icon: GraduationCap, label: 'Grades', path: '/grades' },
-    { icon: CalendarDays, label: 'Attendance', path: '/attendance' },
-    { icon: ClipboardList, label: 'Assignments', path: '/assignments' },
-    { icon: BookOpen, label: 'Course Materials', path: '/courses' },
-    { icon: Megaphone, label: 'Announcements', path: '/announcements' },
-    { icon: Bell, label: 'Notifications', path: '/notifications' }
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', section: 'School', accent: 'blue' },
+    { icon: School, label: 'My Class', path: '/classes', section: 'School', accent: 'orange' },
+    { icon: BookOpen, label: 'Subjects', path: '/subjects', section: 'School', accent: 'blue' },
+    { icon: GraduationCap, label: 'Grades', path: '/grades', section: 'School', accent: 'orange' },
+    { icon: CalendarDays, label: 'Attendance', path: '/attendance', section: 'School', accent: 'blue' },
+    { icon: ClipboardList, label: 'Assignments', path: '/assignments', section: 'School', accent: 'orange' },
+    { icon: BookOpen, label: 'Course Materials', path: '/courses', section: 'School', accent: 'blue' },
+    { icon: Megaphone, label: 'Announcements', path: '/announcements', section: 'Communication', accent: 'orange' },
+    { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' }
   ]
+}
+
+/** Group flat nav items by section label for sidebar rendering. */
+export function groupNavItemsBySection(items) {
+  const groups = []
+  const indexBySection = new Map()
+
+  items.forEach((item) => {
+    const section = item.section || 'Menu'
+    if (!indexBySection.has(section)) {
+      indexBySection.set(section, groups.length)
+      groups.push({ section, items: [] })
+    }
+    groups[indexBySection.get(section)].items.push(item)
+  })
+
+  return groups
 }
 
 export const sidebarItemsByRole = navigationItemsByRole

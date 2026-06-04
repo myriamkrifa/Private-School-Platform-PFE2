@@ -16,6 +16,7 @@ API.interceptors.request.use((config) => {
 // ─────────────────────────────────────────────
 export const registerUser = (data) => API.post('/auth/register', data)
 export const loginUser   = (data) => API.post('/auth/login', data)
+export const firebaseGoogleLogin = (idToken) => API.post('/auth/firebase-google', { idToken })
 export const getMe       = ()     => API.get('/auth/me')
 export const logoutUser  = ()     => API.post('/auth/logout')
 
@@ -23,6 +24,7 @@ export const logoutUser  = ()     => API.post('/auth/logout')
 // Users (admin)
 // ─────────────────────────────────────────────
 export const getAllUsers = () => API.get('/users')
+export const approveUser = (id) => API.patch(`/users/${id}/approve`)
 export const provisionStudentWithParent = (data) => API.post('/users/provision/student', data)
 export const provisionTeacher = (data) => API.post('/users/provision/teacher', data)
 export const updateUserRole = (id, role) => API.patch(`/users/${id}/role`, { role })
@@ -42,6 +44,7 @@ export const getAllStudents = () => API.get('/students')
 export const getStudentById = (id) => API.get(`/students/${id}`)
 export const getMyChildren = () => API.get('/students/me/children')
 export const createStudent = (data) => API.post('/students', data)
+export const updateStudent = (id, data) => API.put(`/students/${id}`, data)
 export const deleteStudent = (id) => API.delete(`/students/${id}`)
 export const linkParentToStudent = (studentId, data) => API.post(`/students/${studentId}/parents`, data)
 export const getStudentProgress = (studentId) => API.get(`/students/${studentId}/progress`)
@@ -52,7 +55,16 @@ export const getStudentProgress = (studentId) => API.get(`/students/${studentId}
 export const getAllTeachers = () => API.get('/teachers')
 export const getTeacherById = (id) => API.get(`/teachers/${id}`)
 export const createTeacher = (data) => API.post('/teachers', data)
+export const updateTeacher = (id, data) => API.put(`/teachers/${id}`, data)
 export const deleteTeacher = (id) => API.delete(`/teachers/${id}`)
+
+// ─────────────────────────────────────────────
+// Parents
+// ─────────────────────────────────────────────
+export const getAllParents = () => API.get('/parents')
+export const getParentById = (id) => API.get(`/parents/${id}`)
+export const updateParent = (id, data) => API.put(`/parents/${id}`, data)
+export const deleteParent = (id) => API.delete(`/parents/${id}`)
 
 // ─────────────────────────────────────────────
 // Classes
@@ -70,10 +82,12 @@ export const removeTeacherFromClass = (id, teacherId) => API.delete(`/classes/${
 // ─────────────────────────────────────────────
 // Academic Years
 // ─────────────────────────────────────────────
-export const getAcademicYears = () => API.get('/academic-years')
+export const getAcademicYears = (params) => API.get('/academic-years', { params })
 export const createAcademicYear = (data) => API.post('/academic-years', data)
 export const updateAcademicYear = (id, data) => API.patch(`/academic-years/${id}`, data)
 export const activateAcademicYear = (id) => API.patch(`/academic-years/${id}`, { isActive: true })
+export const archiveAcademicYear = (id) => API.patch(`/academic-years/${id}/archive`)
+export const restoreAcademicYear = (id) => API.patch(`/academic-years/${id}/restore`)
 export const deleteAcademicYear = (id) => API.delete(`/academic-years/${id}`)
 
 // ─────────────────────────────────────────────

@@ -14,9 +14,11 @@ import {
   updateClass
 } from '../services/auth.service'
 import DashboardShell from '../components/DashboardShell'
+import { useConfirm } from '../context/ConfirmDialogContext'
 
 export default function Classes() {
   const { user } = useAuth()
+  const { confirm } = useConfirm()
   const [classes, setClasses] = useState([])
   const [students, setStudents] = useState([])
   const [teachers, setTeachers] = useState([])
@@ -111,7 +113,14 @@ export default function Classes() {
                       <button
                         className="btn"
                         onClick={async () => {
-                          if (!window.confirm('Delete this class?')) return
+                          const confirmed = await confirm({
+                            title: 'Delete class',
+                            message: `Delete class "${kelas.name}"? This action cannot be undone.`,
+                            confirmLabel: 'Delete',
+                            cancelLabel: 'Cancel',
+                            variant: 'danger'
+                          })
+                          if (!confirmed) return
                           await deleteClass(kelas.id)
                           await refresh()
                           if (selectedClass?.id === kelas.id) setSelectedClass(null)

@@ -1,17 +1,21 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AtSign, Lock } from 'lucide-react'
+import { signInWithPopup } from 'firebase/auth'
 import { useAuth } from '../context/AuthContext'
-import { loginUser } from '../services/auth.service'
+import { loginUser, firebaseGoogleLogin } from '../services/auth.service'
+import { auth, googleProvider } from '../config/firebase'
 import signinBgUrl from '../assets/signin-bg.png'
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login } = useAuth()
 
   const [form, setForm] = useState({ email: '', password: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [infoMessage] = useState(() => location.state?.message || '')
   const [loading, setLoading] = useState(false)
 
   const handleChange = (e) => {
@@ -32,6 +36,22 @@ export default function Login() {
       navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid email or password.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      const result = await signInWithPopup(auth, googleProvider)
+      const idToken = await result.user.getIdToken()
+      const res = await firebaseGoogleLogin(idToken)
+      login(res.data.user, res.data.token)
+      navigate('/dashboard')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Google sign-in failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -74,6 +94,12 @@ export default function Login() {
               Sign in to access your Private School Management workspace.
             </p>
           </div>
+
+          {infoMessage ? (
+            <div className="alert alert-success mb-3">
+              <span>✓</span> {infoMessage}
+            </div>
+          ) : null}
 
           {error && (
             <div className="alert alert-error">
@@ -136,6 +162,18 @@ export default function Login() {
             >
               {loading ? <span className="spinner"></span> : null}
               {loading ? 'Signing in...' : 'Sign In'}
+            </button>
+
+            <div className="divider">or</div>
+
+            <button
+              type="button"
+              className="btn btn-google"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+            >
+              <span className="google-icon" aria-hidden="true">G</span>
+              {loading ? 'Please wait...' : 'Sign in with Google'}
             </button>
           </form>
 

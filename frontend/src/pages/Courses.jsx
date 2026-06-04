@@ -9,11 +9,13 @@ import {
   getTeacherClasses
 } from '../services/auth.service'
 import DashboardShell from '../components/DashboardShell'
+import { useConfirm } from '../context/ConfirmDialogContext'
 
 const initialMaterialForm = { courseId: '', title: '', description: '', fileUrl: '', content: '' }
 
 export default function Courses() {
   const { user } = useAuth()
+  const { confirm } = useConfirm()
   const isAdmin = user?.role === 'ADMIN'
   const isTeacher = user?.role === 'TEACHER'
   const canCreateMaterial = isAdmin || isTeacher
@@ -96,7 +98,14 @@ export default function Courses() {
   }
 
   const handleDeleteMaterial = async (id) => {
-    if (!window.confirm('Delete this material?')) return
+    const confirmed = await confirm({
+      title: 'Delete material',
+      message: 'Delete this course material? This action cannot be undone.',
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      variant: 'danger'
+    })
+    if (!confirmed) return
     try {
       await deleteCourseMaterial(id)
       await refresh()

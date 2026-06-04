@@ -1358,7 +1358,7 @@ function AdminDashboard() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div className={cardClass}>
           <SectionTitle icon={Calendar} title="Academic Year Toggle" subtitle="Single active year policy" />
-          {academicYears.map((year) => (
+          {academicYears.filter((year) => !year.isArchived).map((year) => (
             <div key={year.id} className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 p-2 text-sm">
               <span>{year.name}</span>
               <button type="button" onClick={() => toggleAcademicYear(year)} className={`rounded px-2 py-1 ${year.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>

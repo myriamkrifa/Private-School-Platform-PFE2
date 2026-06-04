@@ -8,8 +8,10 @@ import {
   getSubjects,
   getTeachingAssignments
 } from '../services/auth.service'
+import { useConfirm } from '../context/ConfirmDialogContext'
 
 export default function TeachingAssignments() {
+  const { confirm } = useConfirm()
   const [classes, setClasses] = useState([])
   const [teachers, setTeachers] = useState([])
   const [subjects, setSubjects] = useState([])
@@ -71,7 +73,14 @@ export default function TeachingAssignments() {
   }
 
   const onDelete = async (id) => {
-    if (!window.confirm('Remove this teaching assignment?')) return
+    const confirmed = await confirm({
+      title: 'Remove assignment',
+      message: 'Remove this teaching assignment? This action cannot be undone.',
+      confirmLabel: 'Remove',
+      cancelLabel: 'Cancel',
+      variant: 'danger'
+    })
+    if (!confirmed) return
     try {
       await deleteTeachingAssignment(id)
       await load()

@@ -20,10 +20,12 @@ import Announcements from './pages/Announcements'
 import Messages  from './pages/Messages'
 import Notifications from './pages/Notifications'
 import ProtectedRoute from './components/ProtectedRoute'
+import { ConfirmDialogProvider } from './context/ConfirmDialogContext'
 
 export default function App() {
   return (
     <BrowserRouter>
+      <ConfirmDialogProvider>
       <Routes>
         {/* Public routes */}
         <Route path="/login"    element={<Login />} />
@@ -122,6 +124,7 @@ export default function App() {
         {/* Default redirect */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      </ConfirmDialogProvider>
     </BrowserRouter>
   )
 }
