@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  AudioLines,
   Bot,
-  CheckCircle2,
   FileText,
   Loader2,
   MessageSquare,
-  Mic,
   Plus,
   Trash2
 } from 'lucide-react'
@@ -15,8 +12,8 @@ import { useAuth } from '../context/AuthContext'
 import { getFallbackCapabilities } from '../config/aiAssistantConfig'
 import API from '../services/apiClient'
 import {
-  configureAiLlm,
   deleteAiSession,
+  deleteAiReport,
   generateAiReport,
   getAiReport,
   getAiReports,
@@ -50,8 +47,24 @@ function renderChatText(text) {
   })
 }
 
-function ReportContent({ text }) {
-  const paragraphs = String(text || '').split(/\n\n+/)
+function ReportContent({ text, reportType }) {
+  const content = String(text || '')
+  const isTimetableGrid =
+    reportType === 'TIMETABLE' ||
+    reportType === 'TIMETABLE_STUDENTS' ||
+    reportType === 'TIMETABLE_TEACHERS' ||
+    content.includes('class="timetable-grid-wrap"')
+
+  if (isTimetableGrid && content.includes('<table class="timetable-grid">')) {
+    return (
+      <div
+        className="ai-report-body ai-report-body--timetable"
+        dangerouslySetInnerHTML={{ __html: content }}
+      />
+    )
+  }
+
+  const paragraphs = content.split(/\n\n+/)
   return (
     <div className="ai-report-body">
       {paragraphs.map((block, index) => {
@@ -80,7 +93,6 @@ export default function AIAssistant() {
   const [capabilities, setCapabilities] = useState(() =>
     getFallbackCapabilities(user?.role || 'STUDENT')
   )
-  const [aiMode, setAiMode] = useState('local')
   const [apiOnline, setApiOnline] = useState(true)
   const [sessions, setSessions] = useState([])
   const [activeSessionId, setActiveSessionId] = useState(null)
@@ -94,20 +106,12 @@ export default function AIAssistant() {
   const [activeReport, setActiveReport] = useState(null)
   const [generatingReport, setGeneratingReport] = useState(null)
   const [panel, setPanel] = useState('chat')
-  const [statusMessage, setStatusMessage] = useState('')
-  const [setupHint, setSetupHint] = useState('')
-  const [llmConfigured, setLlmConfigured] = useState(false)
-  const [geminiConfigured, setGeminiConfigured] = useState(false)
-  const [geminiKeyInvalid, setGeminiKeyInvalid] = useState(false)
-  const [llmError, setLlmError] = useState('')
-  const [canConfigure, setCanConfigure] = useState(true)
-  const [ollamaAvailable, setOllamaAvailable] = useState(false)
-  const [geminiKeyInput, setGeminiKeyInput] = useState('')
-  const [savingKey, setSavingKey] = useState(false)
-  const [setupError, setSetupError] = useState('')
   const [showPromptMenu, setShowPromptMenu] = useState(false)
   const chatEndRef = useRef(null)
   const promptMenuRef = useRef(null)
+
+  const isChatIdle = messages.length === 0 && !loadingChat
+  const greetingName = user?.name?.trim().split(/\s+/)[0] || 'there'
 
   const sourceLabel = (source) => {
     if (source === 'school') return 'School AI'
@@ -175,15 +179,6 @@ export default function AIAssistant() {
       try {
         const res = await getAiStatus()
         const data = res.data?.data || {}
-        setLlmConfigured(Boolean(data.llmWorking ?? data.llmConfigured))
-        setGeminiConfigured(Boolean(data.geminiConfigured))
-        setGeminiKeyInvalid(Boolean(data.geminiKeyInvalid))
-        setLlmError(data.llmError || '')
-        setCanConfigure(data.canConfigure !== false)
-        setOllamaAvailable(Boolean(data.ollamaAvailable))
-        setAiMode(data.llmConfigured ? 'llm' : 'local')
-        setStatusMessage(data.message || '')
-        setSetupHint(data.setupHint || '')
         if (data.capabilities) {
           setCapabilities(data.capabilities)
         } else if (user?.role) {
@@ -310,6 +305,16 @@ export default function AIAssistant() {
     }
   }
 
+  const handleDeleteReport = async (reportId) => {
+    try {
+      await deleteAiReport(reportId)
+      if (activeReport?.id === reportId) setActiveReport(null)
+      await loadReports()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete report.')
+    }
+  }
+
   const handleGenerateReport = async (reportType) => {
     setGeneratingReport(reportType)
     setError('')
@@ -325,67 +330,6 @@ export default function AIAssistant() {
       setGeneratingReport(null)
     }
   }
-
-  const handleSaveGeminiKey = async (e) => {
-    e.preventDefault()
-    const key = geminiKeyInput.trim()
-    if (!key) {
-      setSetupError('Paste your Gemini API key first.')
-      return
-    }
-    setSavingKey(true)
-    setSetupError('')
-    try {
-      const res = await configureAiLlm(key)
-      setLlmConfigured(true)
-      setGeminiConfigured(true)
-      setGeminiKeyInput('')
-      setStatusMessage(res.data?.message || 'Full AI enabled.')
-      setAiMode('llm')
-    } catch (err) {
-      setSetupError(err.response?.data?.message || 'Failed to save API key.')
-    } finally {
-      setSavingKey(false)
-    }
-  }
-
-  const renderApiKeySetup = (compact = false) => (
-    <div className={compact ? 'ai-setup-inline' : 'page-card ai-config-warning ai-setup-card'}>
-      <h3 className="ai-setup-title">Enable full AI — paste your Gemini API key</h3>
-      <p className={compact ? 'text-muted' : ''}>
-        Get a free key from{' '}
-        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
-          Google AI Studio
-        </a>
-        {ollamaAvailable && !compact ? ' · Local Ollama is also available' : ''}.
-      </p>
-      <form className="ai-setup-form" onSubmit={handleSaveGeminiKey}>
-        <input
-          type="password"
-          className="form-input"
-          placeholder="Paste your API key (AIza… or AQ.… from AI Studio)"
-          value={geminiKeyInput}
-          onChange={(e) => setGeminiKeyInput(e.target.value)}
-          autoComplete="off"
-          disabled={savingKey}
-        />
-        <button type="submit" className="btn btn-primary" disabled={savingKey || !geminiKeyInput.trim()}>
-          {savingKey ? (
-            <>
-              <Loader2 size={16} className="ai-spinner" aria-hidden />
-              Saving…
-            </>
-          ) : (
-            'Enable full AI'
-          )}
-        </button>
-      </form>
-      {setupError ? <p className="field-error">{setupError}</p> : null}
-      <p className="text-muted ai-setup-alt">
-        Or edit <code>backend/.env</code> → <code>GEMINI_API_KEY=your-key</code> and restart the backend.
-      </p>
-    </div>
-  )
 
   const openReport = async (reportId) => {
     setPanel('reports')
@@ -410,23 +354,7 @@ export default function AIAssistant() {
             <code>npm run dev</code> (port 5000), then refresh this page.
           </p>
         </div>
-      ) : geminiKeyInvalid && canConfigure ? (
-        <>
-          <div className="page-card ai-config-warning ai-setup-card">
-            <p>
-              <strong>Gemini key is not working.</strong> {llmError || statusMessage}
-            </p>
-          </div>
-          {renderApiKeySetup()}
-        </>
-      ) : !geminiConfigured && canConfigure ? (
-        renderApiKeySetup()
-      ) : (
-        <div className="page-card ai-config-success">
-          <CheckCircle2 size={20} aria-hidden />
-          <p>{statusMessage || 'AI Assistant is ready.'}</p>
-        </div>
-      )}
+      ) : null}
 
       {error ? <p className="field-error page-feedback">{error}</p> : null}
       {sessionsError ? <p className="field-error page-feedback">{sessionsError}</p> : null}
@@ -506,15 +434,28 @@ export default function AIAssistant() {
                 <p className="text-muted ai-sidebar-muted">No reports generated yet.</p>
               ) : (
                 reports.map((report) => (
-                  <button
+                  <div
                     key={report.id}
-                    type="button"
-                    className={`ai-report-list-item${activeReport?.id === report.id ? ' is-active' : ''}`}
-                    onClick={() => openReport(report.id)}
+                    className={`ai-report-item${activeReport?.id === report.id ? ' is-active' : ''}`}
                   >
-                    <span>{report.title}</span>
-                    <span className="ai-session-meta">{formatDateTime(report.createdAt)}</span>
-                  </button>
+                    <button
+                      type="button"
+                      className="ai-report-item-main"
+                      onClick={() => openReport(report.id)}
+                    >
+                      <span className="ai-report-item-title">{report.title}</span>
+                      <span className="ai-session-meta">{formatDateTime(report.createdAt)}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-icon ai-session-delete"
+                      title="Delete report"
+                      aria-label="Delete report"
+                      onClick={() => handleDeleteReport(report.id)}
+                    >
+                      <Trash2 size={16} aria-hidden />
+                    </button>
+                  </div>
                 ))
               )}
             </div>
@@ -524,11 +465,8 @@ export default function AIAssistant() {
         <main className="ai-main">
           {panel === 'chat' ? (
             <div
-              className={`ai-chat-panel page-card${messages.length === 0 && !loadingChat ? ' ai-chat-panel--idle' : ''}`}
+              className={`ai-chat-panel page-card${isChatIdle ? ' ai-chat-panel--idle' : ''}`}
             >
-              {!geminiConfigured && canConfigure && apiOnline && messages.length === 0 && !loadingChat
-                ? renderApiKeySetup(true)
-                : null}
               <div className="ai-chat-messages">
                 {messages.map((msg, index) => (
                     <div
@@ -564,6 +502,9 @@ export default function AIAssistant() {
               </div>
 
               <div className="ai-composer-wrap" ref={promptMenuRef}>
+                {isChatIdle ? (
+                  <h2 className="ai-chat-greeting">Here we go, {greetingName}</h2>
+                ) : null}
                 {showPromptMenu && suggestedPrompts.length > 0 ? (
                   <div className="ai-composer-suggestions" role="menu">
                     {suggestedPrompts.map((prompt) => (
@@ -594,33 +535,12 @@ export default function AIAssistant() {
                   <input
                     type="text"
                     className="ai-composer-field"
-                    placeholder="Ask a question"
+                    placeholder="Ask a question (press Enter to send)"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     disabled={loadingChat || !apiOnline}
                     autoComplete="off"
                   />
-                  <button
-                    type="button"
-                    className="ai-composer-icon-btn"
-                    aria-label="Voice input (coming soon)"
-                    disabled
-                    title="Voice input coming soon"
-                  >
-                    <Mic size={20} aria-hidden />
-                  </button>
-                  <button
-                    type="submit"
-                    className="ai-composer-send"
-                    aria-label="Send message"
-                    disabled={loadingChat || !input.trim() || !apiOnline}
-                  >
-                    {loadingChat ? (
-                      <Loader2 size={18} className="ai-spinner" aria-hidden />
-                    ) : (
-                      <AudioLines size={18} aria-hidden />
-                    )}
-                  </button>
                 </form>
               </div>
             </div>
@@ -665,7 +585,7 @@ export default function AIAssistant() {
                       <p className="text-muted">{formatDateTime(activeReport.createdAt)}</p>
                     </div>
                   </div>
-                  <ReportContent text={activeReport.content} />
+                  <ReportContent text={activeReport.content} reportType={activeReport.type} />
                 </section>
               ) : null}
             </div>

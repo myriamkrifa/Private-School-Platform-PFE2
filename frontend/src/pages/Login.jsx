@@ -88,7 +88,6 @@ export default function Login() {
           <div className="auth-header">
             <div className="auth-header-top">
               <h1>Welcome back</h1>
-              <span className="auth-label">Sign In</span>
             </div>
             <p className="auth-header-sub">
               Sign in to access your Private School Management workspace.

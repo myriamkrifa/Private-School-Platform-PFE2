@@ -8,6 +8,7 @@ export const loginUser   = (data) => API.post('/auth/login', data)
 export const firebaseGoogleLogin = (idToken) => API.post('/auth/firebase-google', { idToken })
 export const getMe       = ()     => API.get('/auth/me')
 export const logoutUser  = ()     => API.post('/auth/logout')
+export const changePasswordFirstLogin = (data) => API.post('/auth/change-password-first-login', data)
 
 // ─────────────────────────────────────────────
 // Users (admin)
@@ -111,7 +112,10 @@ export const exportStudentGrades = (studentId) => API.get(`/grades/student/${stu
 // ─────────────────────────────────────────────
 export const markAttendance = (data) => API.post('/attendance', data)
 export const bulkUpsertAttendance = (data) => API.post('/attendance/bulk-upsert', data)
+export const getAttendanceMarkSheet = (classId) => API.get(`/attendance/mark-sheet/${classId}`)
+export const getClassAttendance = (classId, params) => API.get(`/attendance/class/${classId}`, { params })
 export const getStudentAttendance = (studentId) => API.get(`/attendance/student/${studentId}`)
+export const updateAttendance = (attendanceId, data) => API.patch(`/attendance/${attendanceId}`, data)
 export const justifyAbsence = (attendanceId, data) => API.patch(`/attendance/${attendanceId}/justify`, data)
 
 // ─────────────────────────────────────────────

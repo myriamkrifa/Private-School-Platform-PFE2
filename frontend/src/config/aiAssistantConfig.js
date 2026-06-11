@@ -15,7 +15,9 @@ export const AI_ASSISTANT_FALLBACK = {
       { type: 'ATTENDANCE_MONTHLY', label: 'Monthly Attendance Report', description: 'School-wide attendance for this month.' },
       { type: 'STUDENT_ENROLLMENT', label: 'Student Enrollment Report', description: 'Enrollment totals and class distribution.' },
       { type: 'TEACHER_WORKLOAD', label: 'Teacher Workload Report', description: 'Classes and assignments per teacher.' },
-      { type: 'UNPAID_FEES', label: 'Unpaid Fees Report', description: 'Outstanding fee balances.' }
+      { type: 'UNPAID_FEES', label: 'Unpaid Fees Report', description: 'Outstanding fee balances.' },
+      { type: 'TIMETABLE_STUDENTS', label: 'Student Timetables', description: 'Weekly class schedules for all students, by class.' },
+      { type: 'TIMETABLE_TEACHERS', label: 'Teacher Timetables', description: 'Weekly teaching schedules for all teachers.' }
     ]
   },
   TEACHER: {

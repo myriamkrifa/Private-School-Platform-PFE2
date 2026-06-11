@@ -1,81 +1,53 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
-  bulkUpsertAttendance,
   getMyChildren,
   getStudentAttendance,
-  getTeacherClasses,
-  getTeacherClassStudents,
-  getTeacherClassSubjects,
-  justifyAbsence
+  justifyAbsence,
+  updateAttendance
 } from '../services/auth.service'
 import DashboardShell from '../components/DashboardShell'
+import TeacherAttendanceMarking from '../components/TeacherAttendanceMarking'
 
-const STATUS_VALUES = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']
+const STATUS_BADGE_CLASS = {
+  PRESENT: 'attendance-history-badge--present',
+  ABSENT: 'attendance-history-badge--absent',
+  LATE: 'attendance-history-badge--late',
+  EXCUSED: 'attendance-history-badge--excused'
+}
+
+const HISTORY_STATUSES = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']
 
 export default function Attendance() {
   const { user } = useAuth()
 
-  // Teacher state
-  const [classes, setClasses] = useState([])
-  const [subjects, setSubjects] = useState([])
-  const [students, setStudents] = useState([])
-  const [selectedClassId, setSelectedClassId] = useState('')
-  const [selectedCourseId, setSelectedCourseId] = useState('')
-  const [statusMap, setStatusMap] = useState({})
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-  const [submitting, setSubmitting] = useState(false)
-
-  // Read state
   const [studentId, setStudentId] = useState('')
   const [children, setChildren] = useState([])
   const [records, setRecords] = useState([])
-
   const [justifyForm, setJustifyForm] = useState({ id: '', justification: '' })
+  const [editingRecordId, setEditingRecordId] = useState(null)
+  const [editStatus, setEditStatus] = useState('PRESENT')
+  const [savingRecordId, setSavingRecordId] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        if (user?.role === 'TEACHER') {
-          const response = await getTeacherClasses()
-          setClasses(response.data?.data || [])
-        }
-        if (user?.role === 'PARENT') {
-          const response = await getMyChildren()
-          const list = response.data?.data || []
-          setChildren(list)
-          if (list[0]?.id) setStudentId(String(list[0].id))
-        }
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to initialize attendance view.')
-      }
-    }
-    load()
-  }, [user?.role])
+  const canModifyHistory = user?.role === 'ADMIN' || user?.role === 'TEACHER'
 
   useEffect(() => {
-    const load = async () => {
-      if (!selectedClassId || user?.role !== 'TEACHER') return
-      try {
-        const [studentsRes, subjectsRes] = await Promise.all([
-          getTeacherClassStudents(selectedClassId),
-          getTeacherClassSubjects(selectedClassId)
-        ])
-        setStudents(studentsRes.data?.data || [])
-        setSubjects(subjectsRes.data?.data || [])
-        setStatusMap({})
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to load class details.')
-      }
-    }
-    load()
-  }, [selectedClassId, user?.role])
+    if (user?.role !== 'PARENT') return
+    getMyChildren()
+      .then((response) => {
+        const list = response.data?.data || []
+        setChildren(list)
+        if (list[0]?.id) setStudentId(String(list[0].id))
+      })
+      .catch((err) => setError(err.response?.data?.message || 'Failed to load children.'))
+  }, [user?.role])
 
   const loadAttendance = async (id) => {
     if (!id) return
     setError('')
+    setEditingRecordId(null)
     try {
       const response = await getStudentAttendance(id)
       setRecords(response.data?.data || [])
@@ -88,30 +60,33 @@ export default function Attendance() {
     if (studentId) loadAttendance(studentId)
   }, [studentId])
 
-  const submitAttendance = async (event) => {
-    event.preventDefault()
+  const startModify = (row) => {
+    setEditingRecordId(row.id)
+    setEditStatus(row.status || 'PRESENT')
     setError('')
     setSuccess('')
-    if (!selectedClassId || !selectedCourseId) {
-      setError('Select class and subject first.')
-      return
-    }
-    setSubmitting(true)
+  }
+
+  const cancelModify = () => {
+    setEditingRecordId(null)
+    setEditStatus('PRESENT')
+  }
+
+  const saveModify = async (recordId) => {
+    setError('')
+    setSuccess('')
+    setSavingRecordId(recordId)
     try {
-      await bulkUpsertAttendance({
-        classId: Number(selectedClassId),
-        courseId: Number(selectedCourseId),
-        date: new Date(date).toISOString(),
-        records: students.map((student) => ({
-          studentId: student.id,
-          status: statusMap[student.id] || 'PRESENT'
-        }))
-      })
-      setSuccess('Attendance saved.')
+      await updateAttendance(recordId, { status: editStatus })
+      setRecords((prev) =>
+        prev.map((row) => (row.id === recordId ? { ...row, status: editStatus } : row))
+      )
+      setSuccess('Attendance record updated.')
+      setEditingRecordId(null)
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save attendance.')
+      setError(err.response?.data?.message || 'Failed to update attendance.')
     } finally {
-      setSubmitting(false)
+      setSavingRecordId(null)
     }
   }
 
@@ -129,78 +104,35 @@ export default function Attendance() {
     }
   }
 
+  const showHistory =
+    user?.role === 'PARENT' ||
+    user?.role === 'STUDENT' ||
+    user?.role === 'ADMIN' ||
+    user?.role === 'TEACHER'
+  const showJustify = user?.role === 'PARENT' || user?.role === 'TEACHER' || user?.role === 'ADMIN'
+
   return (
-    <DashboardShell title="Attendance" subtitle="Track daily attendance and absence history.">
-      <div className="space-y-4">
-        {user?.role === 'TEACHER' ? (
-          <section className="page-card">
-            <form onSubmit={submitAttendance} className="page-card">
-              <h3>Mark attendance</h3>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <select
-                  className="form-input"
-                  value={selectedClassId}
-                  onChange={(e) => setSelectedClassId(e.target.value)}
-                >
-                  <option value="">Select class</option>
-                  {classes.map((klass) => <option key={klass.id} value={klass.id}>{klass.name}</option>)}
-                </select>
-                <select
-                  className="form-input"
-                  value={selectedCourseId}
-                  onChange={(e) => setSelectedCourseId(e.target.value)}
-                >
-                  <option value="">Select subject</option>
-                  {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.title}</option>)}
-                </select>
-                <input
-                  className="form-input"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                />
-              </div>
-
-              <table className="data-table">
-                <thead><tr><th>Student</th><th>Status</th></tr></thead>
-                <tbody>
-                  {students.length === 0 ? (
-                    <tr><td colSpan={2}>Select a class to load students.</td></tr>
-                  ) : students.map((student) => (
-                    <tr key={student.id}>
-                      <td>{student.name}</td>
-                      <td>
-                        <select
-                          className="form-input"
-                          value={statusMap[student.id] || 'PRESENT'}
-                          onChange={(e) => setStatusMap((prev) => ({ ...prev, [student.id]: e.target.value }))}
-                        >
-                          {STATUS_VALUES.map((status) => (
-                            <option key={status} value={status}>{status}</option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <button
-                className="btn btn-primary"
-                type="submit"
-                disabled={submitting || !selectedClassId || !selectedCourseId}
-              >
-                {submitting ? 'Saving…' : 'Save Attendance'}
-              </button>
-              {error ? <p className="field-error">{error}</p> : null}
-              {success ? <p style={{ color: 'var(--success)' }}>{success}</p> : null}
-            </form>
-          </section>
+    <DashboardShell
+      title="Attendance"
+      subtitle={
+        user?.role === 'TEACHER' || user?.role === 'ADMIN'
+          ? 'Mark daily attendance by class and subject.'
+          : 'Track daily attendance and absence history.'
+      }
+    >
+      <div className="attendance-page space-y-4">
+        {user?.role === 'TEACHER' || user?.role === 'ADMIN' ? (
+          <TeacherAttendanceMarking />
         ) : null}
 
-        <section className="page-card">
-          <div className="page-card">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {showHistory ? (
+          <section className="page-card attendance-history">
+            <header className="attendance-history-header">
+              <h3>Attendance history</h3>
+              <p className="text-sm text-slate-500">View past records by student.</p>
+            </header>
+
+            <div className="attendance-history-toolbar">
               {user?.role === 'PARENT' ? (
                 <select
                   className="form-input"
@@ -208,7 +140,9 @@ export default function Attendance() {
                   onChange={(e) => setStudentId(e.target.value)}
                 >
                   <option value="">Select child</option>
-                  {children.map((child) => <option key={child.id} value={child.id}>{child.name}</option>)}
+                  {children.map((child) => (
+                    <option key={child.id} value={child.id}>{child.name}</option>
+                  ))}
                 </select>
               ) : (
                 <input
@@ -219,54 +153,112 @@ export default function Attendance() {
                 />
               )}
               <button className="btn btn-primary" type="button" onClick={() => loadAttendance(studentId)}>
-                Load History
+                Load history
               </button>
             </div>
-          </div>
 
-          <div className="page-table-card">
-            <table className="data-table">
-              <thead>
-                <tr><th>Date</th><th>Subject</th><th>Status</th><th>Justification</th></tr>
-              </thead>
-              <tbody>
-                {records.length === 0 ? (
-                  <tr><td colSpan={4}>No attendance records.</td></tr>
-                ) : records.map((row) => (
-                  <tr key={row.id}>
-                    <td>{new Date(row.date).toLocaleDateString()}</td>
-                    <td>{row.course?.title || '-'}</td>
-                    <td>{row.status}</td>
-                    <td>{row.justification || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+            {error ? <p className="field-error attendance-feedback">{error}</p> : null}
+            {success ? <p className="attendance-success attendance-feedback">{success}</p> : null}
 
-        {(user?.role === 'PARENT' || user?.role === 'TEACHER' || user?.role === 'ADMIN') ? (
+            <ul className="attendance-history-list">
+              {records.length === 0 ? (
+                <li className="attendance-history-empty">No attendance records yet.</li>
+              ) : (
+                records.map((row) => (
+                  <li key={row.id} className="attendance-history-item">
+                    <div>
+                      <p className="attendance-history-date">
+                        {new Date(row.date).toLocaleDateString(undefined, {
+                          weekday: 'short',
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </p>
+                      <p className="attendance-history-subject">{row.course?.title || 'General'}</p>
+                      {row.class?.name ? (
+                        <p className="attendance-history-class">{row.class.name}</p>
+                      ) : null}
+                    </div>
+
+                    {editingRecordId === row.id ? (
+                      <div className="attendance-history-actions">
+                        <select
+                          className="form-input attendance-history-status-select"
+                          value={editStatus}
+                          onChange={(e) => setEditStatus(e.target.value)}
+                          disabled={savingRecordId === row.id}
+                        >
+                          {HISTORY_STATUSES.map((status) => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={savingRecordId === row.id}
+                          onClick={() => saveModify(row.id)}
+                        >
+                          {savingRecordId === row.id ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={savingRecordId === row.id}
+                          onClick={cancelModify}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="attendance-history-actions">
+                        <span
+                          className={`attendance-history-badge ${
+                            STATUS_BADGE_CLASS[row.status] || ''
+                          }`}
+                        >
+                          {row.status}
+                        </span>
+                        {canModifyHistory ? (
+                          <button
+                            type="button"
+                            className="btn btn-sm attendance-history-modify-btn"
+                            onClick={() => startModify(row)}
+                          >
+                            Modify
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
+        ) : null}
+
+        {showJustify ? (
           <section className="page-card">
-            <form onSubmit={submitJustification} className="page-card">
-              <h3>Justify Absence</h3>
-              <p className="text-xs text-slate-500">
-                Use the attendance record ID from the table above. Status will be set to EXCUSED.
+            <form onSubmit={submitJustification} className="space-y-3">
+              <h3>Justify absence</h3>
+              <p className="text-sm text-slate-500">
+                Enter the attendance record ID from history above. Status will be set to EXCUSED.
               </p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <input
                   className="form-input"
-                  placeholder="Attendance Record ID"
+                  placeholder="Attendance record ID"
                   value={justifyForm.id}
                   onChange={(e) => setJustifyForm({ ...justifyForm, id: e.target.value })}
                 />
                 <input
                   className="form-input md:col-span-2"
-                  placeholder="Justification (e.g. Doctor's note)"
+                  placeholder="Justification (e.g. doctor's note)"
                   value={justifyForm.justification}
                   onChange={(e) => setJustifyForm({ ...justifyForm, justification: e.target.value })}
                 />
               </div>
-              <button className="btn btn-primary" type="submit">Save Justification</button>
+              <button className="btn btn-primary" type="submit">Save justification</button>
             </form>
           </section>
         ) : null}

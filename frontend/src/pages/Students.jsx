@@ -213,7 +213,7 @@ function StudentsContent() {
             </div>
             <button
               type="button"
-              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-sky-700"
+              className="btn btn-primary btn-inline"
               onClick={() => openCreateModal('STUDENT')}
             >
               + Create Student
@@ -231,6 +231,7 @@ function StudentsContent() {
           <table className="data-table">
             <thead>
               <tr>
+                <th>ID</th>
                 <th>Name</th>
                 <th>Email</th>
                 <th>Grade</th>
@@ -242,6 +243,7 @@ function StudentsContent() {
             <tbody>
               {students.map((student) => (
                 <tr key={student.id}>
+                  <td className="student-id-cell">{student.id}</td>
                   <td>{student.name}</td>
                   <td>{student.email}</td>
                   <td>{student.grade}</td>

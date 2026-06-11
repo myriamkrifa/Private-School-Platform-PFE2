@@ -85,7 +85,7 @@ function UsersContent() {
                     {!u.isActive ? (
                       <button
                         type="button"
-                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                        className="btn btn-primary btn-sm btn-inline"
                         disabled={approvingId === u.id}
                         onClick={() => handleApprove(u.id)}
                       >

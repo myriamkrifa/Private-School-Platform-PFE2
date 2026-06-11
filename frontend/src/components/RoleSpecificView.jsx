@@ -133,7 +133,7 @@ function DoubleConfirmModal({ open, title, detail, onClose, onConfirm }) {
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="rounded-lg bg-amber-600 px-3 py-2 text-sm text-white"
+              className="btn btn-primary btn-sm btn-inline"
             >
               Confirm Step 1
             </button>
@@ -141,7 +141,7 @@ function DoubleConfirmModal({ open, title, detail, onClose, onConfirm }) {
             <button
               type="button"
               onClick={onConfirm}
-              className="rounded-lg bg-rose-600 px-3 py-2 text-sm text-white"
+              className="btn btn-primary btn-sm btn-inline"
             >
               Confirm Step 2
             </button>
@@ -359,7 +359,7 @@ function StudentDashboard({ user }) {
           <button
             type="button"
             onClick={downloadReportCard}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+            className="btn btn-primary btn-sm btn-inline inline-flex items-center gap-2"
           >
             <Download size={14} />
             Generate PDF
@@ -617,7 +617,7 @@ function TeacherDashboard({ user }) {
                       type="button"
                       disabled={!canWrite}
                       onClick={() => handleAttendanceSave(student.id)}
-                      className="rounded-md bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-40"
+                      className="btn btn-primary btn-sm btn-inline disabled:opacity-40"
                     >
                       Save
                     </button>
@@ -691,7 +691,7 @@ function TeacherDashboard({ user }) {
               />
             </div>
             <div className="flex items-center gap-2">
-              <button type="submit" disabled={!canWrite} className="rounded-lg bg-sky-600 px-3 py-2 text-sm text-white disabled:opacity-40">Save Grade</button>
+              <button type="submit" disabled={!canWrite} className="btn btn-primary btn-sm btn-inline disabled:opacity-40">Save Grade</button>
               <button
                 type="button"
                 disabled={!gradeForm.studentId}
@@ -738,7 +738,7 @@ function TeacherDashboard({ user }) {
               placeholder="Paste YouTube or PDF link"
               className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
-            <button type="button" onClick={addLinkResource} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">Add</button>
+            <button type="button" onClick={addLinkResource} className="btn btn-primary btn-sm btn-inline">Add</button>
           </div>
 
           {(resourcesByCourse[selectedCourseId] || []).length ? (
@@ -778,7 +778,7 @@ function TeacherDashboard({ user }) {
             placeholder="Participation, collaboration, behavior notes..."
           />
         </div>
-        <button type="button" onClick={addBehaviorNote} className="mt-2 rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">Save Private Note</button>
+        <button type="button" onClick={addBehaviorNote} className="mt-2 btn btn-primary btn-sm btn-inline">Save Private Note</button>
 
         {notes.length ? (
           <ul className="mt-3 space-y-2 text-sm">
@@ -966,7 +966,7 @@ function ParentDashboard() {
                 type="button"
                 onClick={() => setSelectedChildId(String(child.id))}
                 className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                  String(child.id) === selectedChildId ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700'
+                  String(child.id) === selectedChildId ? 'btn-chip-active' : 'bg-slate-100 text-slate-700'
                 }`}
               >
                 {child.profile?.name || `Child ${child.id}`}
@@ -1034,7 +1034,7 @@ function ParentDashboard() {
 
           <div className={cardClass}>
             <SectionTitle icon={MessageCircle} title="Direct Message" subtitle="Contact teaching staff" />
-            <button type="button" onClick={() => setMessageModalOpen(true)} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
+            <button type="button" onClick={() => setMessageModalOpen(true)} className="btn btn-primary btn-sm btn-inline">
               Contact Teacher
             </button>
           </div>
@@ -1102,7 +1102,7 @@ function ParentDashboard() {
             />
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" onClick={() => setMessageModalOpen(false)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">Cancel</button>
-              <button type="button" onClick={sendDirectMessage} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">Send</button>
+              <button type="button" onClick={sendDirectMessage} className="btn btn-primary btn-sm btn-inline">Send</button>
             </div>
           </div>
         </div>
@@ -1308,7 +1308,7 @@ function AdminDashboard() {
           ) : null}
           <Link
             to="/ai-assistant"
-            className="mt-3 inline-flex rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            className="mt-3 btn btn-primary btn-sm btn-inline"
           >
             Open AI Assistant
           </Link>
@@ -1405,7 +1405,7 @@ function AdminDashboard() {
             placeholder="Emergency alert text..."
           />
           <div className="mt-2 flex gap-2">
-            <button type="button" onClick={publishEmergency} className="rounded-lg bg-rose-600 px-3 py-2 text-sm text-white">Publish Emergency</button>
+            <button type="button" onClick={publishEmergency} className="btn btn-primary btn-sm btn-inline">Publish Emergency</button>
             <button type="button" onClick={() => localStorage.removeItem('globalEmergencyBanner')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">Clear Local Banner</button>
           </div>
         </div>
@@ -1423,7 +1423,7 @@ function AdminDashboard() {
             </select>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" onClick={() => setRoleModal({ open: false, userId: null, role: '' })}>Cancel</button>
-              <button type="button" className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white" onClick={updateRole}>Save</button>
+              <button type="button" className="btn btn-primary btn-sm btn-inline" onClick={updateRole}>Save</button>
             </div>
           </div>
         </div>

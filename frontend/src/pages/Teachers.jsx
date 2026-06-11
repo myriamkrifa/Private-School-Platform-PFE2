@@ -189,7 +189,7 @@ function TeachersContent() {
           </div>
           <button
             type="button"
-            className="rounded-lg bg-[#e97828] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#d56a1f]"
+            className="btn btn-primary btn-inline"
             onClick={() => openCreateModal('TEACHER')}
           >
             + Create Teacher
