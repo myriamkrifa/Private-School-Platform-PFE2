@@ -26,11 +26,15 @@ export const getAdminDashboard = () => API.get('/admin/dashboard')
 export const getTeacherDashboard = () => API.get('/teacher/dashboard')
 export const getParentDashboard = () => API.get('/parent/dashboard')
 export const getStudentDashboard = () => API.get('/student/dashboard')
+export const getCalendarEvents = () => API.get('/calendar/events')
+export const createCalendarEvent = (data) => API.post('/calendar/events', data)
+export const deleteCalendarEvent = (id) => API.delete(`/calendar/events/${id}`)
 
 // ─────────────────────────────────────────────
 // Students
 // ─────────────────────────────────────────────
 export const getAllStudents = () => API.get('/students')
+export const getMyStudentProfile = () => API.get('/students/me')
 export const getStudentById = (id) => API.get(`/students/${id}`)
 export const getMyChildren = () => API.get('/students/me/children')
 export const createStudent = (data) => API.post('/students', data)
@@ -73,6 +77,7 @@ export const removeTeacherFromClass = (id, teacherId) => API.delete(`/classes/${
 // Academic Years
 // ─────────────────────────────────────────────
 export const getAcademicYears = (params) => API.get('/academic-years', { params })
+export const getAcademicYearById = (id) => API.get(`/academic-years/${id}`)
 export const createAcademicYear = (data) => API.post('/academic-years', data)
 export const updateAcademicYear = (id, data) => API.patch(`/academic-years/${id}`, data)
 export const activateAcademicYear = (id) => API.patch(`/academic-years/${id}`, { isActive: true })
@@ -151,6 +156,7 @@ export const markMessageAsRead = (id) => API.patch(`/messages/${id}/read`)
 // Notifications
 // ─────────────────────────────────────────────
 export const getMyNotifications = () => API.get('/notifications/me')
+export const getUnreadNotificationCount = () => API.get('/notifications/me/unread-count')
 export const markNotificationAsRead = (id) => API.patch(`/notifications/${id}/read`)
 export const markAllNotificationsAsRead = () => API.patch('/notifications/me/read-all')
 

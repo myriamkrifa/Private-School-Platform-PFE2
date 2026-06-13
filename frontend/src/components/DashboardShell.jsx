@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
-import { Bell, LogOut } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { Bell, ChevronDown, LogOut } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { CreateAccountProvider, useCreateAccount } from '../context/CreateAccountContext'
+import { useNotifications } from '../context/NotificationContext'
 import { groupNavItemsBySection, navigationItemsByRole } from '../config/roleAccess'
 
 function SidebarAddButton({ createType, onClick }) {
@@ -20,9 +21,123 @@ function SidebarAddButton({ createType, onClick }) {
   )
 }
 
+function SidebarNavLink({ item, isAdmin, openCreateModal }) {
+  const Icon = item.icon
+  const accent = item.accent || 'neutral'
+  const showCreateButton = isAdmin && item.createType
+
+  return (
+    <li>
+      <div className={`erp-sidebar-row erp-sidebar-row--${accent}`}>
+        <NavLink
+          to={item.path}
+          className={({ isActive }) =>
+            `erp-sidebar-link ${isActive ? 'is-active' : ''} erp-sidebar-link--${accent}`
+          }
+        >
+          <span className={`erp-sidebar-icon erp-sidebar-icon--${accent}`}>
+            <Icon size={18} strokeWidth={2} />
+          </span>
+          <span className="truncate">{item.label}</span>
+        </NavLink>
+        {showCreateButton ? (
+          <SidebarAddButton
+            createType={item.createType}
+            onClick={() => openCreateModal(item.createType)}
+          />
+        ) : null}
+      </div>
+    </li>
+  )
+}
+
+function SidebarNavGroup({ item }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const Icon = item.icon
+  const accent = item.accent || 'neutral'
+  const children = item.children || []
+
+  const isChildActive = useMemo(
+    () => children.some((child) => location.pathname === child.path),
+    [children, location.pathname]
+  )
+
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (isChildActive) {
+      setOpen(true)
+    }
+  }, [isChildActive])
+
+  const handleToggle = () => {
+    setOpen((value) => {
+      const next = !value
+      if (next && item.path && !isChildActive) {
+        navigate(item.path)
+      }
+      return next
+    })
+  }
+
+  return (
+    <li className="erp-sidebar-nav-group">
+      <div className={`erp-sidebar-group-box${open ? ' is-open' : ''}${isChildActive ? ' has-active-child' : ''}`}>
+        <button
+          type="button"
+          className={`erp-sidebar-link erp-sidebar-link--group erp-sidebar-link--${accent}${open ? ' is-expanded' : ''}`}
+          onClick={handleToggle}
+          aria-expanded={open}
+          aria-controls={`sidebar-group-${item.label}`}
+        >
+          <span className={`erp-sidebar-icon erp-sidebar-icon--${accent}`}>
+            <Icon size={18} strokeWidth={2} />
+          </span>
+          <span className="erp-sidebar-group-label truncate">{item.label}</span>
+          <ChevronDown
+            size={16}
+            strokeWidth={2}
+            className={`erp-sidebar-chevron${open ? ' is-open' : ''}`}
+            aria-hidden
+          />
+        </button>
+
+        {open ? (
+          <div id={`sidebar-group-${item.label}`} className="erp-sidebar-subnav-wrap is-open">
+            <ul className="erp-sidebar-subnav">
+              {children.map((child) => {
+                const ChildIcon = child.icon
+                const childAccent = child.accent || accent
+
+                return (
+                  <li key={child.path}>
+                    <NavLink
+                      to={child.path}
+                      className={({ isActive }) =>
+                        `erp-sidebar-sublink ${isActive ? 'is-active' : ''} erp-sidebar-sublink--${childAccent}`
+                      }
+                    >
+                      <span className={`erp-sidebar-icon erp-sidebar-icon--${childAccent}`}>
+                        <ChildIcon size={16} strokeWidth={2} />
+                      </span>
+                      <span className="truncate">{child.label}</span>
+                    </NavLink>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    </li>
+  )
+}
+
 function DashboardShellContent({ title, subtitle, children }) {
   const { user, logout } = useAuth()
   const { openCreateModal } = useCreateAccount()
+  const { unreadCount } = useNotifications()
   const navigate = useNavigate()
   const [profileOpen, setProfileOpen] = useState(false)
   const isAdmin = user?.role === 'ADMIN'
@@ -53,8 +168,8 @@ function DashboardShellContent({ title, subtitle, children }) {
           <div className="erp-sidebar-brand">
             <div className="erp-sidebar-logo">PS</div>
             <div>
-              <p className="font-semibold leading-none text-slate-900">Private School</p>
-              <p className="text-xs text-slate-500">ERP Platform</p>
+              <p className="erp-sidebar-brand-title">Private School</p>
+              <p className="erp-sidebar-brand-subtitle">ERP Platform</p>
             </div>
           </div>
 
@@ -63,40 +178,22 @@ function DashboardShellContent({ title, subtitle, children }) {
               <div key={section} className="erp-sidebar-section">
                 <p className="erp-sidebar-section-title">{section}</p>
                 <ul className="space-y-1">
-                  {items.map((item) => {
-                    const Icon = item.icon
-                    const accent = item.accent || 'neutral'
-                    const showCreateButton = isAdmin && item.createType
-
-                    return (
-                      <li key={item.path}>
-                        <div className={`erp-sidebar-row erp-sidebar-row--${accent}`}>
-                          <NavLink
-                            to={item.path}
-                            className={({ isActive }) =>
-                              `erp-sidebar-link ${isActive ? 'is-active' : ''} erp-sidebar-link--${accent}`
-                            }
-                          >
-                            <span className={`erp-sidebar-icon erp-sidebar-icon--${accent}`}>
-                              <Icon size={18} strokeWidth={2} />
-                            </span>
-                            <span className="truncate">{item.label}</span>
-                          </NavLink>
-                          {showCreateButton ? (
-                            <SidebarAddButton
-                              createType={item.createType}
-                              onClick={() => openCreateModal(item.createType)}
-                            />
-                          ) : null}
-                        </div>
-                      </li>
+                  {items.map((item) =>
+                    item.children?.length ? (
+                      <SidebarNavGroup key={item.label} item={item} />
+                    ) : (
+                      <SidebarNavLink
+                        key={item.path}
+                        item={item}
+                        isAdmin={isAdmin}
+                        openCreateModal={openCreateModal}
+                      />
                     )
-                  })}
+                  )}
                 </ul>
               </div>
             ))}
           </nav>
-
         </aside>
 
         <div className="flex min-h-screen flex-1 flex-col">
@@ -110,10 +207,15 @@ function DashboardShellContent({ title, subtitle, children }) {
               <div className="flex items-center gap-2 md:gap-3">
                 <NavLink
                   to="/notifications"
-                  aria-label="Notifications"
+                  aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : 'Notifications'}
                   className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
                 >
                   <Bell size={18} />
+                  {unreadCount > 0 ? (
+                    <span className="notification-badge" aria-hidden>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  ) : null}
                 </NavLink>
 
                 <div className="relative">
@@ -149,9 +251,7 @@ function DashboardShellContent({ title, subtitle, children }) {
             </div>
           </header>
 
-          <main className="flex-1 p-4 md:p-6">
-            {children}
-          </main>
+          <main className="flex-1 p-4 md:p-6">{children}</main>
         </div>
       </div>
     </div>

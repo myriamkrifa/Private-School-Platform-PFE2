@@ -3,6 +3,7 @@ import {
   BookOpen,
   Bot,
   CalendarDays,
+  CalendarRange,
   ClipboardList,
   GraduationCap,
   Inbox,
@@ -46,7 +47,6 @@ export const dashboardModulesByRole = {
 export const navigationItemsByRole = {
   ADMIN: [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', section: 'Overview', accent: 'neutral' },
-    { icon: Users, label: 'Users', path: '/users', section: 'People', accent: 'blue' },
     { icon: GraduationCap, label: 'Students', path: '/students', section: 'People', accent: 'blue' },
     { icon: Users, label: 'Teachers', path: '/teachers', section: 'People', accent: 'orange' },
     { icon: Users, label: 'Parents', path: '/parents', section: 'People', accent: 'orange' },
@@ -63,6 +63,13 @@ export const navigationItemsByRole = {
     { icon: GraduationCap, label: 'Grades', path: '/grades', section: 'Academic', accent: 'blue' },
     { icon: CalendarDays, label: 'Attendance', path: '/attendance', section: 'Academic', accent: 'orange' },
     { icon: BookOpen, label: 'Courses', path: '/courses', section: 'Academic', accent: 'blue' },
+    {
+      icon: CalendarRange,
+      label: 'TimeTable',
+      path: '/timetables/students',
+      section: 'Academic',
+      accent: 'blue'
+    },
     { icon: Megaphone, label: 'Announcements', path: '/announcements', section: 'Communication', accent: 'orange' },
     { icon: Inbox, label: 'Messages', path: '/messages', section: 'Communication', accent: 'blue' },
     { icon: Bell, label: 'Notifications', path: '/notifications', section: 'Communication', accent: 'neutral' },

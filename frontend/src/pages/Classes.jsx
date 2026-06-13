@@ -15,6 +15,18 @@ import {
 } from '../services/auth.service'
 import DashboardShell from '../components/DashboardShell'
 import { useConfirm } from '../context/ConfirmDialogContext'
+import {
+  EDUCATION_LEVELS,
+  educationLevelFromClass,
+  gradesForEducationLevel
+} from '../constants/classGrades'
+
+const emptyClassForm = {
+  name: '',
+  room: '',
+  educationLevel: '',
+  grade: ''
+}
 
 export default function Classes() {
   const { user } = useAuth()
@@ -23,11 +35,13 @@ export default function Classes() {
   const [students, setStudents] = useState([])
   const [teachers, setTeachers] = useState([])
   const [selectedClass, setSelectedClass] = useState(null)
-  const [classForm, setClassForm] = useState({ name: '', room: '', level: 'PRIMARY' })
+  const [classForm, setClassForm] = useState(emptyClassForm)
   const [studentIdToAdd, setStudentIdToAdd] = useState('')
   const [teacherIdToAdd, setTeacherIdToAdd] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [roomEdit, setRoomEdit] = useState('')
+  const [savingRoom, setSavingRoom] = useState(false)
 
   const isAdmin = user?.role === 'ADMIN'
 
@@ -57,19 +71,72 @@ export default function Classes() {
 
   const openDetails = async (classId) => {
     const res = await getClassById(classId)
-    setSelectedClass(res.data.data)
+    const data = res.data.data
+    setSelectedClass(data)
+    setRoomEdit(data?.room || '')
+  }
+
+  const handleSaveRoom = async (event) => {
+    event.preventDefault()
+    if (!selectedClass?.id) return
+
+    const trimmedRoom = roomEdit.trim()
+    if (!trimmedRoom) {
+      setError('Room is required.')
+      return
+    }
+
+    setSavingRoom(true)
+    setError('')
+    try {
+      await updateClass(selectedClass.id, { room: trimmedRoom })
+      await openDetails(selectedClass.id)
+      await refresh()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to update room.')
+    } finally {
+      setSavingRoom(false)
+    }
+  }
+
+  const gradeOptions = useMemo(
+    () => gradesForEducationLevel(classForm.educationLevel),
+    [classForm.educationLevel]
+  )
+
+  const handleClassFormChange = (event) => {
+    const { name, value } = event.target
+    setClassForm((prev) => {
+      if (name === 'educationLevel') {
+        return { ...prev, educationLevel: value, grade: '' }
+      }
+      return { ...prev, [name]: value }
+    })
   }
 
   const createOrUpdate = async (event) => {
     event.preventDefault()
     setError('')
+
+    if (!classForm.name.trim() || !classForm.room.trim() || !classForm.educationLevel || !classForm.grade) {
+      setError('Please fill in name, room, education level, and grade.')
+      return
+    }
+
     try {
-      if (selectedClass?.id) {
-        await updateClass(selectedClass.id, classForm)
-      } else {
-        await createClass(classForm)
+      const payload = {
+        name: classForm.name.trim(),
+        room: classForm.room.trim(),
+        educationLevel: classForm.educationLevel,
+        grade: classForm.grade
       }
-      setClassForm({ name: '', room: '', level: 'PRIMARY' })
+
+      if (selectedClass?.id) {
+        await updateClass(selectedClass.id, payload)
+      } else {
+        await createClass(payload)
+      }
+      setClassForm(emptyClassForm)
       setSelectedClass(null)
       await refresh()
     } catch (e) {
@@ -116,6 +183,8 @@ export default function Classes() {
               <tr>
                 <th>Class</th>
                 <th>Room</th>
+                <th>Education Level</th>
+                <th>Grade</th>
                 <th>Teachers</th>
                 <th>Students</th>
                 <th>Actions</th>
@@ -126,6 +195,8 @@ export default function Classes() {
                 <tr key={kelas.id}>
                   <td>{kelas.name}</td>
                   <td>{kelas.room}</td>
+                  <td>{educationLevelFromClass(kelas) || '—'}</td>
+                  <td>{kelas.grade || '—'}</td>
                   <td>{kelas.teachers?.map((t) => t.name).join(', ') || 'N/A'}</td>
                   <td>{kelas._count?.students || 0}</td>
                   <td>
@@ -146,15 +217,69 @@ export default function Classes() {
       {isAdmin ? (
         <section className="page-card">
           <h3>{selectedClass?.id ? 'Edit Class' : 'Create Class'}</h3>
-          <form className="page-card" onSubmit={createOrUpdate}>
-            <input className="form-input" placeholder="Name" value={classForm.name} onChange={(e) => setClassForm((p) => ({ ...p, name: e.target.value }))} />
-            <input className="form-input" placeholder="Room" value={classForm.room} onChange={(e) => setClassForm((p) => ({ ...p, room: e.target.value }))} />
-            <select className="form-input" value={classForm.level} onChange={(e) => setClassForm((p) => ({ ...p, level: e.target.value }))}>
-              <option value="PRIMARY">PRIMARY</option>
-              <option value="SECONDARY">SECONDARY</option>
-            </select>
-            <button className="btn btn-primary" type="submit">Save</button>
-            {error ? <p className="field-error">{error}</p> : null}
+          <form className="class-form-grid page-card" onSubmit={createOrUpdate}>
+            <label className="class-form-field">
+              <span className="class-form-label">Name</span>
+              <input
+                className="form-input"
+                name="name"
+                placeholder="Name"
+                value={classForm.name}
+                onChange={handleClassFormChange}
+                required
+              />
+            </label>
+            <label className="class-form-field">
+              <span className="class-form-label">Room</span>
+              <input
+                className="form-input"
+                name="room"
+                placeholder="Room"
+                value={classForm.room}
+                onChange={handleClassFormChange}
+                required
+              />
+            </label>
+            <label className="class-form-field">
+              <span className="class-form-label">Education Level</span>
+              <select
+                className="form-input"
+                name="educationLevel"
+                value={classForm.educationLevel}
+                onChange={handleClassFormChange}
+                required
+              >
+                <option value="">Select education level</option>
+                {EDUCATION_LEVELS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {classForm.educationLevel ? (
+              <label className="class-form-field">
+                <span className="class-form-label">Grade</span>
+                <select
+                  className="form-input"
+                  name="grade"
+                  value={classForm.grade}
+                  onChange={handleClassFormChange}
+                  required
+                >
+                  <option value="">Select grade</option>
+                  {gradeOptions.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {grade}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <div className="class-form-actions">
+              <button className="btn btn-primary" type="submit">Save</button>
+            </div>
+            {error ? <p className="field-error class-form-span-all">{error}</p> : null}
           </form>
         </section>
       ) : null}
@@ -162,7 +287,28 @@ export default function Classes() {
       {selectedClass ? (
         <section className="page-card">
           <h3>Class Details: {selectedClass.name}</h3>
-          <p>Room: {selectedClass.room} | Level: {selectedClass.level}</p>
+          <p>
+            Education Level: {educationLevelFromClass(selectedClass) || '—'} | Grade: {selectedClass.grade || '—'}
+          </p>
+          {isAdmin ? (
+            <form className="class-room-edit" onSubmit={handleSaveRoom}>
+              <label className="class-form-field class-room-edit-field">
+                <span className="class-form-label">Room</span>
+                <input
+                  className="form-input"
+                  value={roomEdit}
+                  onChange={(e) => setRoomEdit(e.target.value)}
+                  placeholder="e.g. A12, Lab 3"
+                  required
+                />
+              </label>
+              <button className="btn btn-primary" type="submit" disabled={savingRoom}>
+                {savingRoom ? 'Saving…' : 'Save room'}
+              </button>
+            </form>
+          ) : (
+            <p>Room: {selectedClass.room}</p>
+          )}
 
           <h4>Students</h4>
           <table className="data-table">

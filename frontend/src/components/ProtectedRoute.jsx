@@ -19,7 +19,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login" replace state={{ message: 'Please sign in to continue.' }} />
   }
 
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user?.role)) {

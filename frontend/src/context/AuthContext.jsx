@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { getMe } from '../services/auth.service'
 
 const AuthContext = createContext(null)
 
@@ -7,15 +8,58 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // On app start, load token + user from localStorage
+  const clearSession = () => {
+    setUser(null)
+    setToken(null)
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+  }
+
   useEffect(() => {
-    const savedToken = localStorage.getItem('token')
-    const savedUser = localStorage.getItem('user')
-    if (savedToken && savedUser) {
+    let cancelled = false
+
+    const init = async () => {
+      const savedToken = localStorage.getItem('token')
+      if (!savedToken) {
+        clearSession()
+        if (!cancelled) setLoading(false)
+        return
+      }
+
       setToken(savedToken)
-      setUser(JSON.parse(savedUser))
+
+      try {
+        const res = await getMe()
+        if (cancelled) return
+        const freshUser = res.data?.user
+        if (freshUser) {
+          setUser(freshUser)
+          localStorage.setItem('user', JSON.stringify(freshUser))
+        }
+      } catch (error) {
+        const status = error.response?.status
+        if (status === 401 || status === 403) {
+          if (!cancelled) clearSession()
+        } else {
+          const savedUser = localStorage.getItem('user')
+          if (savedUser && !cancelled) {
+            try {
+              setUser(JSON.parse(savedUser))
+            } catch {
+              clearSession()
+            }
+          }
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
-    setLoading(false)
+
+    init()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const login = (userData, authToken) => {
@@ -31,10 +75,7 @@ export function AuthProvider({ children }) {
   }
 
   const logout = () => {
-    setUser(null)
-    setToken(null)
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    clearSession()
   }
 
   const isAuthenticated = !!token

@@ -20,7 +20,9 @@ import Announcements from './pages/Announcements'
 import Messages  from './pages/Messages'
 import Notifications from './pages/Notifications'
 import AIAssistant from './pages/AIAssistant'
+import Timetables from './pages/Timetables'
 import ProtectedRoute from './components/ProtectedRoute'
+import FallbackRedirect from './components/FallbackRedirect'
 import { ConfirmDialogProvider } from './context/ConfirmDialogContext'
 
 export default function App() {
@@ -67,6 +69,21 @@ export default function App() {
         <Route path="/teaching-assignments" element={
           <ProtectedRoute allowedRoles={['ADMIN']}>
             <TeachingAssignments />
+          </ProtectedRoute>
+        } />
+        <Route path="/timetables" element={
+          <ProtectedRoute>
+            <Navigate to="/timetables/students" replace />
+          </ProtectedRoute>
+        } />
+        <Route path="/timetables/students" element={
+          <ProtectedRoute>
+            <Timetables variant="students" />
+          </ProtectedRoute>
+        } />
+        <Route path="/timetables/teachers" element={
+          <ProtectedRoute>
+            <Timetables variant="teachers" />
           </ProtectedRoute>
         } />
         <Route path="/subjects" element={
@@ -128,7 +145,7 @@ export default function App() {
         } />
 
         {/* Default redirect */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<FallbackRedirect />} />
       </Routes>
       </ConfirmDialogProvider>
     </BrowserRouter>

@@ -31,14 +31,15 @@ import {
   Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis
 } from 'recharts'
 import { jsPDF } from 'jspdf'
+import schoolLogo from '../assets/school-logo.png'
+import DashboardCalendar from './DashboardCalendar'
+import StudentWelcomeBanner from './StudentWelcomeBanner'
 import { useAuth } from '../context/AuthContext'
 import { getAiDashboardStats } from '../services/ai.service'
 import API, {
@@ -46,24 +47,24 @@ import API, {
   createGrade,
   createStudent,
   exportStudentGrades,
-  getAcademicYears,
   getAllClasses,
   getAllCourses,
   getAllStudents,
   getAllTeachers,
-  getAllUsers,
+  getCalendarEvents,
+  getClassById,
   getAnnouncements,
   getCourseAssignments,
   getInboxMessages,
   getMyNotifications,
-  getStudentAttendance,
+  getMyChildren,
+  getParentDashboard,
   getStudentById,
+  getStudentDashboard,
   getStudentGrades,
   linkParentToStudent,
-  markAttendance,
   registerUser,
-  sendMessage,
-  updateAcademicYear
+  sendMessage
 } from '../services/auth.service'
 
 const cardClass = 'rounded-2xl border border-slate-200 bg-white p-4 shadow-sm'
@@ -104,6 +105,23 @@ function SectionTitle({ icon: Icon, title, subtitle }) {
         <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
         {subtitle ? <p className="text-xs text-slate-500">{subtitle}</p> : null}
       </div>
+    </div>
+  )
+}
+
+function DashboardStatPill({ icon: Icon, label, value }) {
+  return (
+    <div className="dashboard-stat-pill">
+      <div className="dashboard-stat-pill-body">
+        <div className="dashboard-stat-pill-icon">
+          <Icon size={22} strokeWidth={1.75} color="#ffffff" aria-hidden />
+        </div>
+        <div className="dashboard-stat-pill-text">
+          <span className="dashboard-stat-pill-label">{label}</span>
+          <span className="dashboard-stat-pill-value">{value}</span>
+        </div>
+      </div>
+      <div className="dashboard-stat-pill-cap" aria-hidden />
     </div>
   )
 }
@@ -164,45 +182,33 @@ function StudentDashboard({ user }) {
   useEffect(() => {
     const load = async () => {
       try {
-        const studentId = Number.parseInt(localStorage.getItem('studentId') || '', 10)
-        if (!Number.isInteger(studentId) || studentId <= 0) {
+        const dashboardRes = await getStudentDashboard()
+        const dashboard = dashboardRes.data?.data || {}
+        const profile = dashboard.profile || null
+
+        if (!profile) {
           setLoading(false)
           return
         }
 
-        const [profileRes, gradesRes, studentsRes, coursesRes] = await Promise.all([
-          getStudentById(studentId),
-          getStudentGrades(studentId),
-          getAllStudents(),
-          getAllCourses()
+        setStudentData(profile)
+        setAssignments(dashboard.upcomingAssignments || [])
+
+        const [gradesRes, classRes] = await Promise.all([
+          getStudentGrades(profile.id),
+          profile.classId ? getClassById(profile.classId).catch(() => null) : Promise.resolve(null)
         ])
 
-        const profile = profileRes.data?.data || null
-        setStudentData(profile)
         setGrades(gradesRes.data?.data || [])
-        setClassmates((studentsRes.data?.data || []).filter((s) => s.id !== studentId))
-
-        const classIds = (profile?.classes || []).map((c) => c.id)
-        const relatedCourses = (coursesRes.data?.data || []).filter((course) => classIds.includes(course.class?.id))
-        const assignmentsByCourse = await Promise.all(
-          relatedCourses.map(async (course) => {
-            try {
-              const response = await getCourseAssignments(course.id)
-              return response.data?.data || []
-            } catch (_error) {
-              return []
-            }
-          })
-        )
-
-        setAssignments(assignmentsByCourse.flat())
+        const roster = classRes?.data?.data?.students || []
+        setClassmates(roster.filter((mate) => mate.id !== profile.id))
       } finally {
         setLoading(false)
       }
     }
 
     load()
-  }, [])
+  }, [user?.id])
 
   const trendData = useMemo(() => {
     return grades
@@ -280,13 +286,15 @@ function StudentDashboard({ user }) {
     return (
       <EmptyState
         title="Student profile not linked"
-        description="Set localStorage studentId after login to enable personal planner widgets."
+        description="Your account is not linked to a student record yet. Ask an administrator to complete your student profile."
       />
     )
   }
 
   return (
     <div className="space-y-4">
+      <StudentWelcomeBanner name={studentData.name || user?.name} />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className={`${cardClass} lg:col-span-2`}>
           <SectionTitle icon={GraduationCap} title="My Grades" subtitle="GPA trend and performance analytics" />
@@ -394,11 +402,8 @@ function StudentDashboard({ user }) {
 
 function TeacherDashboard({ user }) {
   const [loading, setLoading] = useState(true)
-  const [classes, setClasses] = useState([])
   const [students, setStudents] = useState([])
-  const [selectedClassId, setSelectedClassId] = useState('')
-  const [attendanceMap, setAttendanceMap] = useState({})
-  const [attendanceHistory, setAttendanceHistory] = useState([])
+  const [calendarEvents, setCalendarEvents] = useState([])
   const [gradeForm, setGradeForm] = useState({ studentId: '', subject: '', score: '', maxScore: 20 })
   const [gradeEntries, setGradeEntries] = useState([])
   const [teacherCourses, setTeacherCourses] = useState([])
@@ -410,36 +415,31 @@ function TeacherDashboard({ user }) {
   const [notes, setNotes] = useState([])
   const [deleteTarget, setDeleteTarget] = useState(null)
 
+  const refreshCalendarEvents = async () => {
+    try {
+      const calendarRes = await getCalendarEvents()
+      setCalendarEvents(calendarRes.data?.data || [])
+    } catch (_error) {
+      setCalendarEvents([])
+    }
+  }
+
   useEffect(() => {
     const load = async () => {
       try {
-        const [classesRes, studentsRes, coursesRes] = await Promise.all([getAllClasses(), getAllStudents(), getAllCourses()])
-        const assignedClasses = (classesRes.data?.data || []).filter(
-          (item) => item.teacher?.name?.toLowerCase() === user?.name?.toLowerCase()
-        )
-
-        setClasses(assignedClasses)
-        setSelectedClassId(assignedClasses[0]?.id ? String(assignedClasses[0].id) : '')
+        const [studentsRes, coursesRes, calendarRes] = await Promise.all([
+          getAllStudents(),
+          getAllCourses(),
+          getCalendarEvents().catch(() => ({ data: { data: [] } }))
+        ])
         setStudents(studentsRes.data?.data || [])
+        setCalendarEvents(calendarRes.data?.data || [])
 
         const teacherCoursesList = (coursesRes.data?.data || []).filter(
           (course) => course.teacher?.id === user?.id || course.teacher?.name?.toLowerCase() === user?.name?.toLowerCase()
         )
         setTeacherCourses(teacherCoursesList)
         setSelectedCourseId(teacherCoursesList[0]?.id ? String(teacherCoursesList[0].id) : '')
-
-        const attendanceResults = await Promise.all(
-          (studentsRes.data?.data || []).slice(0, 15).map(async (student) => {
-            try {
-              const response = await getStudentAttendance(student.id)
-              return response.data?.data || []
-            } catch (_error) {
-              return []
-            }
-          })
-        )
-
-        setAttendanceHistory(attendanceResults.flat())
       } finally {
         setLoading(false)
       }
@@ -448,21 +448,7 @@ function TeacherDashboard({ user }) {
     load()
   }, [user?.id, user?.name])
 
-  const canWrite = user?.role === 'TEACHER' && Boolean(selectedClassId)
-
-  const heatmapData = useMemo(() => {
-    const grouped = {}
-    attendanceHistory.forEach((record) => {
-      const key = new Date(record.date).toISOString().slice(0, 10)
-      if (!grouped[key]) grouped[key] = { date: key, absent: 0, present: 0 }
-      if (record.status === 'ABSENT') grouped[key].absent += 1
-      if (record.status === 'PRESENT') grouped[key].present += 1
-    })
-
-    return Object.values(grouped)
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .slice(-14)
-  }, [attendanceHistory])
+  const canWrite = user?.role === 'TEACHER'
 
   const gradeStats = useMemo(() => {
     const values = gradeEntries.map((entry) => Number(entry.score)).filter((value) => Number.isFinite(value))
@@ -495,18 +481,6 @@ function TeacherDashboard({ user }) {
       mode
     }
   }, [gradeEntries])
-
-  const handleAttendanceSave = async (studentId) => {
-    if (!canWrite) return
-    const selected = attendanceMap[studentId] || 'PRESENT'
-    const status = selected === 'JUSTIFIED' ? 'ABSENT' : selected
-    await markAttendance({
-      studentId,
-      date: new Date().toISOString(),
-      status,
-      justification: selected === 'JUSTIFIED' ? 'Teacher marked as justified.' : null
-    })
-  }
 
   const submitGrade = async (event) => {
     event.preventDefault()
@@ -579,76 +553,21 @@ function TeacherDashboard({ user }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div className={cardClass}>
-          <SectionTitle icon={Calendar} title="Attendance Tracker" subtitle="Classroom Manager write panel" />
-          {classes.length ? (
-            <select
-              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              value={selectedClassId}
-              onChange={(event) => setSelectedClassId(event.target.value)}
-            >
-              {classes.map((item) => (
-                <option key={item.id} value={item.id}>{item.name} - {item.room}</option>
-              ))}
-            </select>
-          ) : null}
-
-          {students.length ? (
-            <div className="space-y-2">
-              {students.slice(0, 8).map((student) => (
-                <div key={student.id} className="rounded-lg border border-slate-200 p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">{student.name}</p>
-                    <StatusBadge status={attendanceMap[student.id] || 'PRESENT'} />
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <select
-                      disabled={!canWrite}
-                      value={attendanceMap[student.id] || 'PRESENT'}
-                      onChange={(event) => setAttendanceMap((prev) => ({ ...prev, [student.id]: event.target.value }))}
-                      className="rounded-md border border-slate-300 px-2 py-1 text-xs"
-                    >
-                      <option value="PRESENT">PRESENT</option>
-                      <option value="ABSENT">ABSENT</option>
-                      <option value="JUSTIFIED">JUSTIFIED</option>
-                    </select>
-                    <button
-                      type="button"
-                      disabled={!canWrite}
-                      onClick={() => handleAttendanceSave(student.id)}
-                      className="btn btn-primary btn-sm btn-inline disabled:opacity-40"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="No students found" description="Assign students to class to begin attendance tracking." />
-          )}
+          <DashboardCalendar
+            events={calendarEvents}
+            onEventsChange={refreshCalendarEvents}
+            canManageEvents={false}
+          />
         </div>
 
-        <div className={cardClass}>
-          <SectionTitle icon={TrendingUp} title="Attendance Heatmap" subtitle="Identify absenteeism patterns" />
-          {heatmapData.length ? (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={heatmapData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" hide />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="present" fill="#22c55e" />
-                  <Bar dataKey="absent" fill="#ef4444" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <EmptyState title="No attendance history" description="Heatmap appears once records are available." icon={Calendar} />
-          )}
+        <div className={`${cardClass} dashboard-logo-card`}>
+          <img
+            src={schoolLogo}
+            alt="Private School Management Platform (Primary and Secondary)"
+            className="dashboard-school-logo"
+          />
         </div>
       </div>
 
@@ -829,89 +748,115 @@ function ParentDashboard() {
   const [comparison, setComparison] = useState({ childAverage: 0, classAverage: 0 })
   const [messageModalOpen, setMessageModalOpen] = useState(false)
   const [messagePayload, setMessagePayload] = useState({ recipientId: '', content: '' })
+  const [loadError, setLoadError] = useState('')
+
+  const mapChildProfiles = (studentList) =>
+    (studentList || []).map((student) => ({
+      id: student.id,
+      profile: student,
+      grades: student.grades || [],
+      attendance: student.attendances || []
+    }))
 
   useEffect(() => {
     const load = async () => {
+      setLoadError('')
+      let profiles = []
+
       try {
-        const childIds = JSON.parse(localStorage.getItem('parentChildrenIds') || '[]')
-        const normalizedIds = Array.isArray(childIds)
-          ? childIds.map((id) => Number.parseInt(id, 10)).filter((id) => Number.isInteger(id) && id > 0)
-          : []
+        const dashboardRes = await getParentDashboard()
+        profiles = mapChildProfiles(dashboardRes.data?.data?.children)
+      } catch (dashboardError) {
+        try {
+          const childrenRes = await getMyChildren()
+          profiles = mapChildProfiles(childrenRes.data?.data)
+        } catch (childrenError) {
+          setLoadError(
+            childrenError.response?.data?.message ||
+              dashboardError.response?.data?.message ||
+              'Failed to load linked children.'
+          )
+        }
+      }
 
-        const profiles = await Promise.all(
-          normalizedIds.map(async (id) => {
-            const [profileRes, gradesRes, attendanceRes] = await Promise.all([
-              getStudentById(id),
-              getStudentGrades(id),
-              getStudentAttendance(id)
-            ])
+      setChildren(profiles)
+      setSelectedChildId(String(profiles[0]?.id || ''))
 
-            return {
-              id,
-              profile: profileRes.data?.data || null,
-              grades: gradesRes.data?.data || [],
-              attendance: attendanceRes.data?.data || []
-            }
-          })
-        )
+      if (!profiles.length) {
+        setLoading(false)
+        return
+      }
 
-        setChildren(profiles)
-        setSelectedChildId(String(profiles[0]?.id || ''))
+      let courseList = []
+      try {
+        const coursesRes = await getAllCourses()
+        courseList = coursesRes.data?.data || []
+      } catch (_error) {
+        courseList = []
+      }
 
-        const [coursesRes, notificationsRes] = await Promise.all([getAllCourses(), getMyNotifications()])
-        const courseList = coursesRes.data?.data || []
+      const teacherMap = new Map()
+      profiles.forEach((child) => {
+        const childClassId = child.profile?.classId || child.profile?.class?.id
+        if (!childClassId) return
 
-        const teacherMap = new Map()
-        profiles.forEach((child) => {
-          const childClassIds = (child.profile?.classes || []).map((klass) => klass.id)
-          courseList
-            .filter((course) => childClassIds.includes(course.class?.id) && course.teacher)
-            .forEach((course) => {
-              teacherMap.set(course.teacher.id, {
-                id: course.teacher.id,
-                name: course.teacher.name,
-                email: course.teacher.email,
-                course: course.title
-              })
+        courseList
+          .filter((course) => course.class?.id === childClassId && course.teacher)
+          .forEach((course) => {
+            teacherMap.set(course.teacher.id, {
+              id: course.teacher.id,
+              name: course.teacher.name,
+              email: course.teacher.email,
+              course: course.title
             })
-        })
+          })
+      })
 
-        const teacherList = Array.from(teacherMap.values())
-        setTeacherDirectory(teacherList)
-        setMessagePayload((prev) => ({ ...prev, recipientId: teacherList[0] ? String(teacherList[0].id) : '' }))
+      const teacherList = Array.from(teacherMap.values())
+      setTeacherDirectory(teacherList)
+      setMessagePayload((prev) => ({ ...prev, recipientId: teacherList[0] ? String(teacherList[0].id) : '' }))
 
-        const highPriority = (notificationsRes.data?.data || []).filter(
+      try {
+        const notificationsRes = await getMyNotifications()
+        const notificationAlerts = (notificationsRes.data?.data || []).filter(
           (item) => item.type === 'ABSENCE' || item.type === 'GRADE'
         )
-        setAlerts(highPriority)
-
-        const allStudentProfiles = await Promise.all(
-          normalizedIds.slice(0, 1).map(async (id) => {
-            const gradesRes = await getStudentGrades(id)
-            return gradesRes.data?.data || []
-          })
-        )
-
-        const selectedGrades = allStudentProfiles.flat()
-        const childAverage = selectedGrades.length
-          ? selectedGrades.reduce((acc, grade) => acc + Number(grade.score || 0), 0) / selectedGrades.length
-          : 0
-
-        const allStudentsRes = await getAllStudents()
-        const sampleIds = (allStudentsRes.data?.data || []).slice(0, 8).map((student) => student.id)
-        const sampleGrades = await Promise.all(sampleIds.map(async (id) => (await getStudentGrades(id)).data?.data || []))
-        const flat = sampleGrades.flat()
-        const classAverage = flat.length
-          ? flat.reduce((acc, grade) => acc + Number(grade.score || 0), 0) / flat.length
-          : 0
-
-        setComparison({
-          childAverage: Number(childAverage.toFixed(2)),
-          classAverage: Number(classAverage.toFixed(2))
-        })
-      } finally {
-        setLoading(false)
+        setAlerts(notificationAlerts.slice(0, 6))
+      } catch (_error) {
+        setAlerts([])
       }
+
+      const selectedGrades = profiles[0]?.grades || []
+      const childAverage = selectedGrades.length
+        ? selectedGrades.reduce((acc, grade) => acc + Number(grade.score || 0), 0) / selectedGrades.length
+        : 0
+
+      let classAverage = 0
+      const firstClassId = profiles[0]?.profile?.classId
+      if (firstClassId) {
+        try {
+          const classRes = await getClassById(firstClassId)
+          const classmateIds = (classRes?.data?.data?.students || []).map((student) => student.id)
+          if (classmateIds.length) {
+            const sampleGrades = await Promise.all(
+              classmateIds.slice(0, 12).map(async (id) => (await getStudentGrades(id)).data?.data || [])
+            )
+            const flat = sampleGrades.flat()
+            classAverage = flat.length
+              ? flat.reduce((acc, grade) => acc + Number(grade.score || 0), 0) / flat.length
+              : 0
+          }
+        } catch (_error) {
+          classAverage = 0
+        }
+      }
+
+      setComparison({
+        childAverage: Number(childAverage.toFixed(2)),
+        classAverage: Number(classAverage.toFixed(2))
+      })
+
+      setLoading(false)
     }
 
     load()
@@ -956,6 +901,12 @@ function ParentDashboard() {
 
   return (
     <div className="space-y-4">
+      {loadError ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {loadError}
+        </div>
+      ) : null}
+
       <div className={cardClass}>
         <SectionTitle icon={Users} title="Sibling Toggle" subtitle="Support System observer mode" />
         {children.length ? (
@@ -976,7 +927,7 @@ function ParentDashboard() {
         ) : (
           <EmptyState
             title="No children linked"
-            description="Set localStorage parentChildrenIds, for example [1,2], to activate sibling switching."
+            description="Your account is not linked to any student records yet. Ask an administrator to link your parent account to your child during student registration."
           />
         )}
       </div>
@@ -1115,51 +1066,46 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [studentsCount, setStudentsCount] = useState(0)
   const [teachersCount, setTeachersCount] = useState(0)
-  const [users, setUsers] = useState([])
-  const [academicYears, setAcademicYears] = useState([])
-  const [roleModal, setRoleModal] = useState({ open: false, userId: null, role: '' })
   const [systemHealth, setSystemHealth] = useState({ status: 'unknown', message: 'No check yet' })
   const [auditLogs, setAuditLogs] = useState([])
   const [bulkSummary, setBulkSummary] = useState({ created: 0, failed: 0 })
-  const [tuitionData, setTuitionData] = useState([])
   const [emergencyText, setEmergencyText] = useState('')
   const [aiStats, setAiStats] = useState({ conversationCount: 0, lastReport: null })
+  const [calendarEvents, setCalendarEvents] = useState([])
+
+  const refreshCalendarEvents = async () => {
+    try {
+      const calendarRes = await getCalendarEvents()
+      setCalendarEvents(calendarRes.data?.data || [])
+    } catch (_error) {
+      setCalendarEvents([])
+    }
+  }
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [studentsRes, teachersRes, usersRes, yearsRes, healthRes, aiStatsRes] = await Promise.all([
+        const [studentsRes, teachersRes, healthRes, aiStatsRes, calendarRes] = await Promise.all([
           getAllStudents(),
           getAllTeachers(),
-          getAllUsers(),
-          getAcademicYears(),
           API.get('/health'),
-          getAiDashboardStats().catch(() => ({ data: { data: { conversationCount: 0, lastReport: null } } }))
+          getAiDashboardStats().catch(() => ({ data: { data: { conversationCount: 0, lastReport: null } } })),
+          getCalendarEvents().catch(() => ({ data: { data: [] } }))
         ])
 
         const studentList = studentsRes.data?.data || []
         const teacherList = teachersRes.data?.data || []
-        const userList = usersRes.data?.users || []
-        const yearList = yearsRes.data?.data || []
 
         setStudentsCount(studentList.length)
         setTeachersCount(teacherList.length)
-        setUsers(userList)
-        setAcademicYears(yearList)
         setSystemHealth({
           status: healthRes.data?.status || 'unknown',
           message: healthRes.data?.message || 'No message'
         })
 
-        const paid = Math.ceil(studentList.length * 0.68)
-        const pending = Math.max(studentList.length - paid, 0)
-        setTuitionData([
-          { label: 'Paid', value: paid, color: '#22c55e' },
-          { label: 'Pending', value: pending, color: '#f59e0b' }
-        ])
-
         setAuditLogs(JSON.parse(localStorage.getItem('auditLogs') || '[]'))
         setAiStats(aiStatsRes.data?.data || { conversationCount: 0, lastReport: null })
+        setCalendarEvents(calendarRes.data?.data || [])
       } finally {
         setLoading(false)
       }
@@ -1177,32 +1123,6 @@ function AdminDashboard() {
   }
 
   const simulatedRevenue = useMemo(() => `$${(studentsCount * 250).toLocaleString()}`, [studentsCount])
-
-  const updateRole = async () => {
-    if (!roleModal.userId || !roleModal.role) return
-
-    const previous = users.find((user) => user.id === roleModal.userId)
-    await API.patch(`/users/${roleModal.userId}/role`, { role: roleModal.role })
-    setUsers((prev) => prev.map((user) => (user.id === roleModal.userId ? { ...user, role: roleModal.role } : user)))
-
-    if (previous) {
-      pushAudit({
-        type: 'role_change',
-        message: `${previous.name} role changed from ${previous.role} to ${roleModal.role}`
-      })
-    }
-
-    setRoleModal({ open: false, userId: null, role: '' })
-  }
-
-  const toggleAcademicYear = async (year) => {
-    await updateAcademicYear(year.id, { isActive: !year.isActive })
-    setAcademicYears((prev) => prev.map((item) => ({ ...item, isActive: item.id === year.id ? !year.isActive : false })))
-    pushAudit({
-      type: 'academic_year_toggle',
-      message: `Academic year ${year.name} set to ${!year.isActive ? 'ACTIVE' : 'INACTIVE'}`
-    })
-  }
 
   const publishEmergency = async () => {
     if (!emergencyText.trim()) return
@@ -1289,9 +1209,9 @@ function AdminDashboard() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className={cardClass}><SectionTitle icon={GraduationCap} title="Total Students" /><p className="text-3xl font-bold">{studentsCount}</p></div>
-        <div className={cardClass}><SectionTitle icon={Users} title="Total Teachers" /><p className="text-3xl font-bold">{teachersCount}</p></div>
-        <div className={cardClass}><SectionTitle icon={Wallet} title="Revenue" /><p className="text-3xl font-bold">{simulatedRevenue}</p></div>
+        <DashboardStatPill icon={GraduationCap} label="Total Students" value={studentsCount} />
+        <DashboardStatPill icon={Users} label="Total Teachers" value={teachersCount} />
+        <DashboardStatPill icon={Wallet} label="Revenue" value={simulatedRevenue} />
         <div className={cardClass}>
           <SectionTitle icon={Bot} title="AI Assistant" subtitle="School data insights" />
           <p className="text-sm text-slate-600">
@@ -1317,6 +1237,31 @@ function AdminDashboard() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div className={cardClass}>
+          <DashboardCalendar
+            events={calendarEvents}
+            onEventsChange={refreshCalendarEvents}
+            canManageEvents
+          />
+        </div>
+
+        <div className={`${cardClass} dashboard-logo-card`}>
+          <img
+            src={schoolLogo}
+            alt="Private School Management Platform (Primary and Secondary)"
+            className="dashboard-school-logo"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className={cardClass}>
+          <SectionTitle icon={Upload} title="Bulk User Onboarding" subtitle="CSV upload for student-parent provisioning" />
+          <p className="mb-2 text-xs text-slate-500">Required columns: studentName,studentEmail,studentPassword,parentName,parentEmail,parentPassword,grade</p>
+          <input type="file" accept=".csv" onChange={handleBulkFile} className="text-sm" />
+          <p className="mt-2 text-sm">Created: <span className="font-semibold">{bulkSummary.created}</span> | Failed: <span className="font-semibold">{bulkSummary.failed}</span></p>
+        </div>
+
+        <div className={cardClass}>
           <SectionTitle icon={Shield} title="System Health" subtitle="Control Tower observability" />
           <p className="text-sm">Status: <span className="font-semibold">{systemHealth.status}</span></p>
           <p className="text-sm text-slate-600">{systemHealth.message}</p>
@@ -1338,96 +1283,22 @@ function AdminDashboard() {
             )}
           </div>
         </div>
-
-        <div className={cardClass}>
-          <SectionTitle icon={TrendingUp} title="Revenue & Enrollment Analytics" subtitle="Paid vs pending tuition" />
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={tuitionData} dataKey="value" nameKey="label" outerRadius={90}>
-                  {tuitionData.map((entry) => <Cell key={entry.label} fill={entry.color} />)}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <div className={cardClass}>
-          <SectionTitle icon={Users} title="User Management" subtitle="Role governance" />
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead><tr className="border-b border-slate-200"><th className="px-2 py-2">Name</th><th className="px-2 py-2">Role</th><th className="px-2 py-2">Action</th></tr></thead>
-              <tbody>
-                {users.slice(0, 20).map((item) => (
-                  <tr key={item.id} className="border-b border-slate-100">
-                    <td className="px-2 py-2">{item.name}</td>
-                    <td className="px-2 py-2">{item.role}</td>
-                    <td className="px-2 py-2"><button type="button" className="rounded border border-slate-300 px-2 py-1 text-xs" onClick={() => setRoleModal({ open: true, userId: item.id, role: item.role })}>Edit Role</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className={cardClass}>
-          <SectionTitle icon={Upload} title="Bulk User Onboarding" subtitle="CSV upload for student-parent provisioning" />
-          <p className="mb-2 text-xs text-slate-500">Required columns: studentName,studentEmail,studentPassword,parentName,parentEmail,parentPassword,grade</p>
-          <input type="file" accept=".csv" onChange={handleBulkFile} className="text-sm" />
-          <p className="mt-2 text-sm">Created: <span className="font-semibold">{bulkSummary.created}</span> | Failed: <span className="font-semibold">{bulkSummary.failed}</span></p>
+      <div className={cardClass}>
+        <SectionTitle icon={Megaphone} title="Global Broadcast" subtitle="Emergency banner pinned to all dashboards" />
+        <textarea
+          rows={4}
+          value={emergencyText}
+          onChange={(event) => setEmergencyText(event.target.value)}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          placeholder="Emergency alert text..."
+        />
+        <div className="mt-2 flex gap-2">
+          <button type="button" onClick={publishEmergency} className="btn btn-primary btn-sm btn-inline">Publish Emergency</button>
+          <button type="button" onClick={() => localStorage.removeItem('globalEmergencyBanner')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">Clear Local Banner</button>
         </div>
       </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <div className={cardClass}>
-          <SectionTitle icon={Calendar} title="Academic Year Toggle" subtitle="Single active year policy" />
-          {academicYears.filter((year) => !year.isArchived).map((year) => (
-            <div key={year.id} className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 p-2 text-sm">
-              <span>{year.name}</span>
-              <button type="button" onClick={() => toggleAcademicYear(year)} className={`rounded px-2 py-1 ${year.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>
-                {year.isActive ? 'Active' : 'Set Active'}
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <div className={cardClass}>
-          <SectionTitle icon={Megaphone} title="Global Broadcast" subtitle="Emergency banner pinned to all dashboards" />
-          <textarea
-            rows={4}
-            value={emergencyText}
-            onChange={(event) => setEmergencyText(event.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            placeholder="Emergency alert text..."
-          />
-          <div className="mt-2 flex gap-2">
-            <button type="button" onClick={publishEmergency} className="btn btn-primary btn-sm btn-inline">Publish Emergency</button>
-            <button type="button" onClick={() => localStorage.removeItem('globalEmergencyBanner')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">Clear Local Banner</button>
-          </div>
-        </div>
-      </div>
-
-      {roleModal.open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-sm rounded-xl bg-white p-4 shadow-xl">
-            <h4 className="text-base font-semibold">Edit User Role</h4>
-            <select className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value={roleModal.role} onChange={(event) => setRoleModal((prev) => ({ ...prev, role: event.target.value }))}>
-              <option value="ADMIN">ADMIN</option>
-              <option value="TEACHER">TEACHER</option>
-              <option value="PARENT">PARENT</option>
-              <option value="STUDENT">STUDENT</option>
-            </select>
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" onClick={() => setRoleModal({ open: false, userId: null, role: '' })}>Cancel</button>
-              <button type="button" className="btn btn-primary btn-sm btn-inline" onClick={updateRole}>Save</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }

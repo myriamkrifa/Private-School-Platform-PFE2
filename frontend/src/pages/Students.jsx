@@ -18,12 +18,9 @@ const emptyForm = {
   name: '',
   email: '',
   grade: '',
-  firstName: '',
-  lastName: '',
   birthDate: '',
   gender: '',
   address: '',
-  phone: '',
   enrollmentDate: '',
   status: 'ACTIVE',
   classId: ''
@@ -41,12 +38,9 @@ function studentToForm(student) {
     name: student.name || '',
     email: student.email || '',
     grade: student.grade || '',
-    firstName: student.firstName || '',
-    lastName: student.lastName || '',
     birthDate: toDateInputValue(student.birthDate),
     gender: student.gender || '',
     address: student.address || '',
-    phone: student.phone || '',
     enrollmentDate: toDateInputValue(student.enrollmentDate),
     status: student.status || 'ACTIVE',
     classId: student.classId ? String(student.classId) : ''
@@ -149,12 +143,9 @@ function StudentsContent() {
         name: form.name.trim(),
         email: form.email.trim(),
         grade: form.grade.trim(),
-        firstName: form.firstName.trim() || null,
-        lastName: form.lastName.trim() || null,
         birthDate: form.birthDate || null,
         gender: form.gender.trim() || null,
         address: form.address.trim() || null,
-        phone: form.phone.trim() || null,
         enrollmentDate: form.enrollmentDate || null,
         status: form.status,
         classId: form.classId || null
@@ -185,9 +176,9 @@ function StudentsContent() {
     setError('')
     setSuccess('')
     try {
-      await deleteStudent(student.id)
+      const res = await deleteStudent(student.id)
       setStudents((prev) => prev.filter((s) => s.id !== student.id))
-      setSuccess(`Student "${student.name}" was deleted.`)
+      setSuccess(res.data?.message || `Student "${student.name}" was deleted.`)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete student.')
     } finally {
@@ -338,22 +329,6 @@ function StudentsContent() {
                 <div className="form-row-2">
                 <input
                   className="modal-field"
-                  name="firstName"
-                    placeholder="First name"
-                    value={form.firstName}
-                    onChange={handleFormChange}
-                  />
-                <input
-                  className="modal-field"
-                  name="lastName"
-                    placeholder="Last name"
-                    value={form.lastName}
-                    onChange={handleFormChange}
-                  />
-                </div>
-                <div className="form-row-2">
-                <input
-                  className="modal-field"
                   name="grade"
                     placeholder="Grade (e.g. Primary 1)"
                     value={form.grade}
@@ -407,13 +382,6 @@ function StudentsContent() {
                 name="gender"
                   placeholder="Gender"
                   value={form.gender}
-                  onChange={handleFormChange}
-                />
-              <input
-                className="modal-field"
-                name="phone"
-                  placeholder="Phone"
-                  value={form.phone}
                   onChange={handleFormChange}
                 />
               <textarea

@@ -16,10 +16,7 @@ const emptyForm = {
   name: '',
   email: '',
   subject: '',
-  firstName: '',
-  lastName: '',
   phone: '',
-  specialty: '',
   hireDate: '',
   status: 'ACTIVE'
 }
@@ -36,10 +33,7 @@ function teacherToForm(teacher) {
     name: teacher.name || '',
     email: teacher.email || '',
     subject: teacher.subject || '',
-    firstName: teacher.firstName || '',
-    lastName: teacher.lastName || '',
     phone: teacher.phone || '',
-    specialty: teacher.specialty || '',
     hireDate: toDateInputValue(teacher.hireDate),
     status: teacher.status || 'ACTIVE'
   }
@@ -131,10 +125,7 @@ function TeachersContent() {
         name: form.name.trim(),
         email: form.email.trim(),
         subject: form.subject.trim(),
-        firstName: form.firstName.trim() || null,
-        lastName: form.lastName.trim() || null,
         phone: form.phone.trim() || null,
-        specialty: form.specialty.trim() || null,
         hireDate: form.hireDate || null,
         status: form.status
       })
@@ -285,14 +276,7 @@ function TeachersContent() {
                   ))}
                 </select>
               </div>
-              <div className="form-row-2">
-                <input className="modal-field" name="firstName" placeholder="First name" value={form.firstName} onChange={handleFormChange} />
-                <input className="modal-field" name="lastName" placeholder="Last name" value={form.lastName} onChange={handleFormChange} />
-              </div>
-              <div className="form-row-2">
-                <input className="modal-field" name="specialty" placeholder="Specialty" value={form.specialty} onChange={handleFormChange} />
-                <input className="modal-field" name="phone" placeholder="Phone" value={form.phone} onChange={handleFormChange} />
-              </div>
+              <input className="modal-field" name="phone" placeholder="Phone" value={form.phone} onChange={handleFormChange} />
               <input className="modal-field" type="date" name="hireDate" value={form.hireDate} onChange={handleFormChange} />
             </form>
           )}

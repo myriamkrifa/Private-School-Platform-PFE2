@@ -4,10 +4,13 @@ import {
   activateAcademicYear,
   archiveAcademicYear,
   createAcademicYear,
+  deleteAcademicYear,
+  getAcademicYearById,
   getAcademicYears,
   restoreAcademicYear
 } from '../services/auth.service'
 import DashboardShell from '../components/DashboardShell'
+import YearDetailsPanel from '../components/YearDetailsPanel'
 import { useConfirm } from '../context/ConfirmDialogContext'
 
 function formatDate(value) {
@@ -25,6 +28,8 @@ export default function AcademicYears() {
   const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState(false)
   const [actionId, setActionId] = useState(null)
+  const [selectedYear, setSelectedYear] = useState(null)
+  const [detailsLoading, setDetailsLoading] = useState(false)
 
   const loadYears = async () => {
     setLoading(true)
@@ -109,6 +114,58 @@ export default function AcademicYears() {
       await loadYears()
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to archive academic year.')
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const openDetails = async (year) => {
+    setDetailsLoading(true)
+    setSelectedYear({
+      id: year.id,
+      name: year.name,
+      startDate: year.startDate,
+      endDate: year.endDate,
+      isActive: year.isActive,
+      isArchived: year.isArchived,
+      archivedAt: year.archivedAt
+    })
+    setError('')
+    try {
+      const res = await getAcademicYearById(year.id)
+      setSelectedYear(res.data.data)
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load academic year details.')
+      setSelectedYear(null)
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
+
+  const handleDelete = async (year) => {
+    const message = year.isActive
+      ? `"${year.name}" is the active school year. Deleting it will remove this year and unlink its classes. Continue?`
+      : `Permanently delete "${year.name}"? Classes linked to this year will be kept but no longer assigned to it.`
+
+    const confirmed = await confirm({
+      title: 'Delete academic year',
+      message,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      variant: 'danger'
+    })
+    if (!confirmed) return
+
+    setActionId(year.id)
+    setError('')
+    setSuccess('')
+    try {
+      await deleteAcademicYear(year.id)
+      if (selectedYear?.id === year.id) setSelectedYear(null)
+      setSuccess(`"${year.name}" deleted.`)
+      await loadYears()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete academic year.')
     } finally {
       setActionId(null)
     }
@@ -249,6 +306,22 @@ export default function AcademicYears() {
                       </td>
                       <td className="actions-col">
                         <div className="table-actions">
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            onClick={() => openDetails(y)}
+                            disabled={detailsLoading && selectedYear?.id === y.id}
+                          >
+                            Details
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            disabled={actionId === y.id}
+                            onClick={() => handleDelete(y)}
+                          >
+                            Delete
+                          </button>
                           {y.isActive ? (
                             <span className="table-action-hint" title="Current active year">
                               <Check size={16} aria-hidden />
@@ -315,6 +388,14 @@ export default function AcademicYears() {
                       <div className="table-actions">
                         <button
                           type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => openDetails(y)}
+                          disabled={detailsLoading && selectedYear?.id === y.id}
+                        >
+                          Details
+                        </button>
+                        <button
+                          type="button"
                           className="btn btn-sm"
                           disabled={actionId === y.id}
                           onClick={() => handleRestore(y)}
@@ -331,6 +412,8 @@ export default function AcademicYears() {
           )}
         </section>
       )}
+
+      {selectedYear ? <YearDetailsPanel year={selectedYear} loading={detailsLoading} /> : null}
     </DashboardShell>
   )
 }
