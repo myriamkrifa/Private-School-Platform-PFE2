@@ -2,13 +2,13 @@ export const TIMETABLE_PAGES = {
   students: {
     reportType: 'TIMETABLE_STUDENTS',
     label: 'Student Timetables',
-    description: 'Weekly class schedules for all students, by class.',
+    description: 'Weekly class schedules (Monday–Friday, 08:00–17:00) for all students, by class. Generating also creates matching teacher timetables.',
     subtitle: 'Generate weekly class schedules for all students, grouped by class.'
   },
   teachers: {
     reportType: 'TIMETABLE_TEACHERS',
     label: 'Teacher Timetables',
-    description: 'Weekly teaching schedules for all teachers.',
+    description: 'Weekly teaching schedules (Monday–Friday, 08:00–17:00) for all teachers.',
     subtitle: 'Generate weekly teaching schedules for all teachers.'
   }
 }

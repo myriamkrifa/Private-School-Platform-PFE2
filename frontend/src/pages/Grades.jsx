@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useNotifications } from '../context/NotificationContext'
 import {
   bulkUpsertGrades,
   exportStudentGrades,
+  getMyAverage,
   getMyChildren,
+  getMyGrades,
   getStudentAverage,
   getStudentGrades,
   getTeacherClasses,
@@ -11,11 +14,15 @@ import {
   getTeacherClassSubjects
 } from '../services/auth.service'
 import DashboardShell from '../components/DashboardShell'
+import { formatStudentId, parseStudentIdInput } from '../utils/studentId'
 
 const GRADE_TYPES = ['TEST', 'EXAM', 'HOMEWORK', 'ORAL', 'PROJECT']
+const STUDENT_REFRESH_MS = 20000
 
 export default function Grades() {
   const { user } = useAuth()
+  const { refreshUnreadCount } = useNotifications()
+  const isStudent = user?.role === 'STUDENT'
 
   // Teacher entry state
   const [classes, setClasses] = useState([])
@@ -38,7 +45,10 @@ export default function Grades() {
   const [average, setAverage] = useState(null)
 
   const [error, setError] = useState('')
+  const [viewError, setViewError] = useState('')
   const [success, setSuccess] = useState('')
+  const [loadingGrades, setLoadingGrades] = useState(false)
+  const loadRequestRef = useRef(0)
 
   useEffect(() => {
     const load = async () => {
@@ -52,10 +62,6 @@ export default function Grades() {
           const list = response.data?.data || []
           setChildren(list)
           if (list[0]?.id) setStudentId(String(list[0].id))
-        }
-        if (user?.role === 'STUDENT') {
-          // Use student dashboard? simpler: rely on /students/me/profile via /students/:id with id from /auth/me + studentId in localStorage if any.
-          // We attempt to find studentId from /grades/student requires actual id. Skip until known.
         }
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to initialize grades view.')
@@ -76,6 +82,10 @@ export default function Grades() {
         setSubjects(subjectsRes.data?.data || [])
         setSelectedCourseId('')
         setGradeMap({})
+        setStudentId('')
+        setGrades([])
+        setAverage(null)
+        setViewError('')
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load class details.')
       }
@@ -83,24 +93,58 @@ export default function Grades() {
     load()
   }, [selectedClassId, user?.role])
 
-  const loadGradesForStudent = async (id) => {
-    if (!id) return
-    setError('')
+  const loadGradesForStudent = useCallback(async (id) => {
+    const requestId = loadRequestRef.current + 1
+    loadRequestRef.current = requestId
+    setViewError('')
+    setLoadingGrades(true)
+
     try {
-      const [gRes, aRes] = await Promise.all([
-        getStudentGrades(id),
-        getStudentAverage(id)
-      ])
+      let gRes
+      let aRes
+
+      if (isStudent) {
+        ;[gRes, aRes] = await Promise.all([getMyGrades(), getMyAverage()])
+      } else {
+        const parsedId = parseStudentIdInput(id)
+        if (!parsedId) {
+          setViewError('Please provide a valid student ID (e.g. 800V1619z0m).')
+          return
+        }
+        ;[gRes, aRes] = await Promise.all([
+          getStudentGrades(parsedId),
+          getStudentAverage(parsedId)
+        ])
+      }
+
+      if (requestId !== loadRequestRef.current) return
       setGrades(gRes.data?.data || [])
       setAverage(aRes.data || null)
+      if (isStudent) {
+        await refreshUnreadCount()
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load grades.')
+      if (requestId !== loadRequestRef.current) return
+      setGrades([])
+      setAverage(null)
+      setViewError(err.response?.data?.message || 'Failed to load grades.')
+    } finally {
+      if (requestId === loadRequestRef.current) {
+        setLoadingGrades(false)
+      }
     }
-  }
+  }, [isStudent, refreshUnreadCount])
 
   useEffect(() => {
-    if (studentId) loadGradesForStudent(studentId)
-  }, [studentId])
+    if (isStudent) {
+      loadGradesForStudent()
+      const intervalId = setInterval(() => loadGradesForStudent(), STUDENT_REFRESH_MS)
+      return () => clearInterval(intervalId)
+    }
+    if (user?.role === 'PARENT' && studentId) {
+      loadGradesForStudent(studentId)
+    }
+  }, [isStudent, studentId, user?.role, loadGradesForStudent])
 
   const submitGrade = async (event) => {
     event.preventDefault()
@@ -142,6 +186,11 @@ export default function Grades() {
       })
       setSuccess(`Saved ${entries.length} grade(s).`)
       setGradeMap({})
+      if (studentId) {
+        await loadGradesForStudent(studentId)
+      } else if (isStudent) {
+        await loadGradesForStudent()
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save grades.')
     } finally {
@@ -163,15 +212,16 @@ export default function Grades() {
       link.remove()
       URL.revokeObjectURL(url)
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to export grades.')
+      setViewError(err.response?.data?.message || 'Failed to export grades.')
     }
   }
 
   const subtitle = useMemo(() => {
     if (user?.role === 'TEACHER') return 'Enter grades by class and subject (0–20 scale).'
     if (user?.role === 'PARENT') return "View your children's grades and exports."
+    if (isStudent) return 'Your grades update automatically when your teacher posts them.'
     return 'View grade history.'
-  }, [user?.role])
+  }, [user?.role, isStudent])
 
   return (
     <DashboardShell title="Grades" subtitle={subtitle}>
@@ -259,43 +309,69 @@ export default function Grades() {
 
         <section className="page-card">
           <div className="page-card">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {user?.role === 'PARENT' ? (
-                <select
-                  className="form-input"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                >
-                  <option value="">Select child</option>
-                  {children.map((child) => (
-                    <option key={child.id} value={child.id}>{child.name}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  className="form-input"
-                  placeholder="Student ID to view"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                />
-              )}
-              <button className="btn btn-primary" type="button" onClick={() => loadGradesForStudent(studentId)}>
-                Load Grades
-              </button>
-              {(user?.role === 'ADMIN' || user?.role === 'TEACHER' || user?.role === 'PARENT') ? (
-                <button className="btn" type="button" onClick={handleExport} disabled={!studentId}>
-                  Export CSV
+            {!isStudent ? (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                {user?.role === 'PARENT' ? (
+                  <select
+                    className="form-input"
+                    value={studentId}
+                    onChange={(e) => setStudentId(e.target.value)}
+                  >
+                    <option value="">Select child</option>
+                    {children.map((child) => (
+                      <option key={child.id} value={child.id}>{child.name}</option>
+                    ))}
+                  </select>
+                ) : user?.role === 'TEACHER' ? (
+                  <select
+                    className="form-input"
+                    value={studentId}
+                    onChange={(e) => setStudentId(e.target.value)}
+                    disabled={!selectedClassId}
+                  >
+                    <option value="">
+                      {selectedClassId ? 'Select student' : 'Select a class above first'}
+                    </option>
+                    {students.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.name} ({formatStudentId(student.id)})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className="form-input"
+                    placeholder="Student ID (e.g. STU-001)"
+                    value={studentId}
+                    onChange={(e) => setStudentId(e.target.value)}
+                  />
+                )}
+                <button className="btn btn-primary" type="button" onClick={() => loadGradesForStudent(studentId)}>
+                  Load Grades
                 </button>
-              ) : null}
-            </div>
+                {(user?.role === 'ADMIN' || user?.role === 'TEACHER' || user?.role === 'PARENT') ? (
+                  <button className="btn" type="button" onClick={handleExport} disabled={!studentId}>
+                    Export CSV
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <p className="grades-live-hint text-sm text-slate-500">
+                Live updates every {STUDENT_REFRESH_MS / 1000} seconds. You also get a notification when a new grade is posted.
+              </p>
+            )}
             {average ? (
               <p className="mt-2 text-sm">
                 Overall average: <strong>{average.average ?? '—'}</strong>{' '}
                 · Weighted: <strong>{average.weightedAverage ?? '—'}</strong>{' '}
                 · Total grades: {average.count}
               </p>
+            ) : isStudent || studentId ? (
+              <p className="mt-2 text-sm">
+                Overall average: <strong>—</strong> · Weighted: <strong>—</strong> · Total grades: 0
+              </p>
             ) : null}
-            {error && user?.role !== 'TEACHER' ? <p className="field-error">{error}</p> : null}
+            {viewError ? <p className="field-error">{viewError}</p> : null}
           </div>
 
           <div className="page-table-card">
@@ -307,11 +383,14 @@ export default function Grades() {
                   <th>Score</th>
                   <th>Title</th>
                   <th>Date</th>
+                  {isStudent ? <th>Posted at</th> : null}
                 </tr>
               </thead>
               <tbody>
-                {grades.length === 0 ? (
-                  <tr><td colSpan={5}>No grades to display.</td></tr>
+                {loadingGrades && grades.length === 0 ? (
+                  <tr><td colSpan={isStudent ? 6 : 5}>Loading grades…</td></tr>
+                ) : grades.length === 0 ? (
+                  <tr><td colSpan={isStudent ? 6 : 5}>No grades to display.</td></tr>
                 ) : grades.map((grade) => (
                   <tr key={grade.id}>
                     <td>{grade.course?.title || grade.subject}</td>
@@ -319,6 +398,9 @@ export default function Grades() {
                     <td>{grade.score}/{grade.maxScore || 20}</td>
                     <td>{grade.title || '-'}</td>
                     <td>{new Date(grade.recordedAt).toLocaleDateString()}</td>
+                    {isStudent ? (
+                      <td>{grade.updatedAt ? new Date(grade.updatedAt).toLocaleString() : '—'}</td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

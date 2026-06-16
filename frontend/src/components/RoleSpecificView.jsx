@@ -37,9 +37,9 @@ import {
   YAxis
 } from 'recharts'
 import { jsPDF } from 'jspdf'
-import schoolLogo from '../assets/school-logo.png'
 import DashboardCalendar from './DashboardCalendar'
 import StudentWelcomeBanner from './StudentWelcomeBanner'
+import { formatStudentId } from '../utils/studentId'
 import { useAuth } from '../context/AuthContext'
 import { getAiDashboardStats } from '../services/ai.service'
 import API, {
@@ -104,6 +104,49 @@ function SectionTitle({ icon: Icon, title, subtitle }) {
       <div>
         <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
         {subtitle ? <p className="text-xs text-slate-500">{subtitle}</p> : null}
+      </div>
+    </div>
+  )
+}
+
+function DashboardAiAssistantCard({ aiStats }) {
+  const lastReportTitle = aiStats.lastReport?.title || 'None yet'
+  const lastReportAt = aiStats.lastReport?.createdAt
+    ? new Date(aiStats.lastReport.createdAt).toLocaleString()
+    : null
+
+  return (
+    <div className="dashboard-ai-card">
+      <div className="dashboard-ai-card-header">
+        <div className="dashboard-ai-card-icon" aria-hidden>
+          <Bot size={22} strokeWidth={1.75} />
+        </div>
+        <div className="dashboard-ai-card-heading">
+          <h3 className="dashboard-ai-card-title">AI Assistant</h3>
+          <p className="dashboard-ai-card-subtitle">School data insights</p>
+        </div>
+      </div>
+
+      <div className="dashboard-ai-card-stats">
+        <div className="dashboard-ai-card-stat">
+          <span className="dashboard-ai-card-stat-label">Conversations</span>
+          <span className="dashboard-ai-card-stat-value">{aiStats.conversationCount}</span>
+        </div>
+        <div className="dashboard-ai-card-stat dashboard-ai-card-stat--wide">
+          <span className="dashboard-ai-card-stat-label">Last report</span>
+          <span className="dashboard-ai-card-stat-value dashboard-ai-card-stat-value--text">
+            {lastReportTitle}
+          </span>
+          {lastReportAt ? (
+            <span className="dashboard-ai-card-stat-meta">{lastReportAt}</span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="dashboard-ai-card-footer">
+        <Link to="/ai-assistant" className="dashboard-ai-card-btn">
+          Open AI Assistant
+        </Link>
       </div>
     </div>
   )
@@ -262,8 +305,9 @@ function StudentDashboard({ user }) {
     doc.text('Private School Platform - Report Card', 14, 16)
     doc.setFontSize(11)
     doc.text(`Student: ${studentData.name}`, 14, 28)
-    doc.text(`Grade Level: ${studentData.grade}`, 14, 35)
-    doc.text(`Current GPA: ${currentGpa}`, 14, 42)
+    doc.text(`Student ID: ${formatStudentId(studentData.id)}`, 14, 35)
+    doc.text(`Grade Level: ${studentData.grade}`, 14, 42)
+    doc.text(`Current GPA: ${currentGpa}`, 14, 49)
 
     let y = 54
     grades.forEach((grade) => {
@@ -293,7 +337,10 @@ function StudentDashboard({ user }) {
 
   return (
     <div className="space-y-4">
-      <StudentWelcomeBanner name={studentData.name || user?.name} />
+      <StudentWelcomeBanner
+        name={studentData.name || user?.name}
+        studentId={studentData.id}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className={`${cardClass} lg:col-span-2`}>
@@ -553,22 +600,12 @@ function TeacherDashboard({ user }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <div className={cardClass}>
-          <DashboardCalendar
-            events={calendarEvents}
-            onEventsChange={refreshCalendarEvents}
-            canManageEvents={false}
-          />
-        </div>
-
-        <div className={`${cardClass} dashboard-logo-card`}>
-          <img
-            src={schoolLogo}
-            alt="Private School Management Platform (Primary and Secondary)"
-            className="dashboard-school-logo"
-          />
-        </div>
+      <div className={cardClass}>
+        <DashboardCalendar
+          events={calendarEvents}
+          onEventsChange={refreshCalendarEvents}
+          canManageEvents={false}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1208,34 +1245,13 @@ function AdminDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
         <DashboardStatPill icon={GraduationCap} label="Total Students" value={studentsCount} />
         <DashboardStatPill icon={Users} label="Total Teachers" value={teachersCount} />
         <DashboardStatPill icon={Wallet} label="Revenue" value={simulatedRevenue} />
-        <div className={cardClass}>
-          <SectionTitle icon={Bot} title="AI Assistant" subtitle="School data insights" />
-          <p className="text-sm text-slate-600">
-            Conversations: <span className="font-semibold text-slate-900">{aiStats.conversationCount}</span>
-          </p>
-          <p className="mt-1 text-sm text-slate-600">
-            Last report:{' '}
-            <span className="font-semibold text-slate-900">
-              {aiStats.lastReport?.title || 'None yet'}
-            </span>
-          </p>
-          {aiStats.lastReport?.createdAt ? (
-            <p className="text-xs text-slate-400">{new Date(aiStats.lastReport.createdAt).toLocaleString()}</p>
-          ) : null}
-          <Link
-            to="/ai-assistant"
-            className="mt-3 btn btn-primary btn-sm btn-inline"
-          >
-            Open AI Assistant
-          </Link>
-        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-2">
         <div className={cardClass}>
           <DashboardCalendar
             events={calendarEvents}
@@ -1244,13 +1260,7 @@ function AdminDashboard() {
           />
         </div>
 
-        <div className={`${cardClass} dashboard-logo-card`}>
-          <img
-            src={schoolLogo}
-            alt="Private School Management Platform (Primary and Secondary)"
-            className="dashboard-school-logo"
-          />
-        </div>
+        <DashboardAiAssistantCard aiStats={aiStats} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

@@ -21,6 +21,7 @@ import Messages  from './pages/Messages'
 import Notifications from './pages/Notifications'
 import AIAssistant from './pages/AIAssistant'
 import Timetables from './pages/Timetables'
+import MyTimetable from './pages/MyTimetable'
 import ProtectedRoute from './components/ProtectedRoute'
 import FallbackRedirect from './components/FallbackRedirect'
 import { ConfirmDialogProvider } from './context/ConfirmDialogContext'
@@ -84,6 +85,11 @@ export default function App() {
         <Route path="/timetables/teachers" element={
           <ProtectedRoute>
             <Timetables variant="teachers" />
+          </ProtectedRoute>
+        } />
+        <Route path="/my-timetable" element={
+          <ProtectedRoute allowedRoles={['STUDENT', 'PARENT', 'TEACHER']}>
+            <MyTimetable />
           </ProtectedRoute>
         } />
         <Route path="/subjects" element={

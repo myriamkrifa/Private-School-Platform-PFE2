@@ -72,6 +72,14 @@ export const assignStudentToClass = (id, data) => API.post(`/classes/${id}/stude
 export const removeStudentFromClass = (id, studentId) => API.delete(`/classes/${id}/students/${studentId}`)
 export const assignTeacherToClass = (id, data) => API.post(`/classes/${id}/teachers`, data)
 export const removeTeacherFromClass = (id, teacherId) => API.delete(`/classes/${id}/teachers/${teacherId}`)
+export const generateClassTimetable = (id) => API.post(`/classes/${id}/timetable`)
+
+export const getAllRooms = () => API.get('/rooms')
+export const createRoom = (data) => API.post('/rooms', data)
+export const updateRoom = (id, data) => API.put(`/rooms/${id}`, data)
+export const deleteRoom = (id) => API.delete(`/rooms/${id}`)
+export const generateRoomTimetable = (id) => API.post(`/rooms/${id}/timetable`)
+export const generateMasterSchedule = () => API.post('/rooms/schedule')
 
 // ─────────────────────────────────────────────
 // Academic Years
@@ -108,7 +116,9 @@ export const deleteCourseMaterial = (id) => API.delete(`/courses/materials/${id}
 export const createGrade = (data) => API.post('/grades', data)
 export const bulkUpsertGrades = (data) => API.post('/grades/bulk-upsert', data)
 export const getStudentGrades = (studentId) => API.get(`/grades/student/${studentId}`)
+export const getMyGrades = () => API.get('/grades/me')
 export const getStudentAverage = (studentId) => API.get(`/grades/student/${studentId}/average`)
+export const getMyAverage = () => API.get('/grades/me/average')
 export const getClassAverage = (classId) => API.get(`/grades/class/${classId}/average`)
 export const exportStudentGrades = (studentId) => API.get(`/grades/student/${studentId}/export`)
 
@@ -120,6 +130,7 @@ export const bulkUpsertAttendance = (data) => API.post('/attendance/bulk-upsert'
 export const getAttendanceMarkSheet = (classId) => API.get(`/attendance/mark-sheet/${classId}`)
 export const getClassAttendance = (classId, params) => API.get(`/attendance/class/${classId}`, { params })
 export const getStudentAttendance = (studentId) => API.get(`/attendance/student/${studentId}`)
+export const getMyAttendance = () => API.get('/attendance/me')
 export const updateAttendance = (attendanceId, data) => API.patch(`/attendance/${attendanceId}`, data)
 export const justifyAbsence = (attendanceId, data) => API.patch(`/attendance/${attendanceId}/justify`, data)
 

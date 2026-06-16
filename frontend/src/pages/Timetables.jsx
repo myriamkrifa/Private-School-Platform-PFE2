@@ -13,7 +13,8 @@ import {
   deleteAiReport,
   generateAiReport,
   getAiReport,
-  getAiReports
+  getAiReports,
+  publishTimetable
 } from '../services/ai.service'
 
 function formatDateTime(value) {
@@ -32,8 +33,10 @@ function TimetablePanel({ variant }) {
   const [reports, setReports] = useState([])
   const [activeReport, setActiveReport] = useState(null)
   const [generating, setGenerating] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const [loadingReports, setLoadingReports] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   const loadReportContent = useCallback(async (reportId) => {
     const res = await getAiReport(reportId)
@@ -66,6 +69,7 @@ function TimetablePanel({ variant }) {
       setActiveReport(null)
       setReports([])
       setError('')
+      setSuccess('')
 
       const matching = await loadReports()
       if (cancelled || !matching.length) return
@@ -94,6 +98,7 @@ function TimetablePanel({ variant }) {
   const handleGenerate = async () => {
     setGenerating(true)
     setError('')
+    setSuccess('')
     try {
       const res = await generateAiReport(config.reportType)
       const report = res.data?.data
@@ -102,6 +107,9 @@ function TimetablePanel({ variant }) {
       }
       setActiveReport(report)
       await loadReports()
+      if (variant === 'students') {
+        setSuccess('Student and teacher timetables were generated with matching days, times, and rooms.')
+      }
     } catch (e) {
       setError(
         e.response?.data?.message ||
@@ -120,6 +128,27 @@ function TimetablePanel({ variant }) {
       setActiveReport(report)
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load timetable.')
+    }
+  }
+
+  const handlePublish = async () => {
+    if (!activeReport?.id || variant !== 'students') return
+    setPublishing(true)
+    setError('')
+    setSuccess('')
+    try {
+      const res = await publishTimetable(activeReport.id)
+      const stats = res.data?.data || {}
+      const report = await loadReportContent(activeReport.id)
+      if (report) setActiveReport(report)
+      await loadReports()
+      setSuccess(
+        `Timetable accepted. Sent to ${stats.studentsPublished || 0} student(s), ${stats.parentsPublished || 0} parent(s), and ${stats.teachersPublished || 0} teacher(s).`
+      )
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to publish timetable.')
+    } finally {
+      setPublishing(false)
     }
   }
 
@@ -144,25 +173,50 @@ function TimetablePanel({ variant }) {
   return (
     <div className="timetable-panel">
       {error ? <p className="field-error page-feedback">{error}</p> : null}
+      {success ? <p className="page-feedback text-emerald-700">{success}</p> : null}
 
       <div className="timetable-panel-intro">
         <h3>{config.label}</h3>
         <p className="text-muted">{config.description}</p>
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={generating}
-          onClick={handleGenerate}
-        >
-          {generating ? (
-            <>
-              <Loader2 size={16} className="ai-spinner" aria-hidden />
-              Generating…
-            </>
-          ) : (
-            'Generate'
-          )}
-        </button>
+        <div className="timetable-panel-actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={generating}
+            onClick={handleGenerate}
+          >
+            {generating ? (
+              <>
+                <Loader2 size={16} className="ai-spinner" aria-hidden />
+                Generating…
+              </>
+            ) : (
+              'Generate'
+            )}
+          </button>
+          {variant === 'students' && activeReport?.content && !activeReport.publishedAt ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={publishing}
+              onClick={handlePublish}
+            >
+              {publishing ? (
+                <>
+                  <Loader2 size={16} className="ai-spinner" aria-hidden />
+                  Accepting…
+                </>
+              ) : (
+                'Accept & Send'
+              )}
+            </button>
+          ) : null}
+        </div>
+        {activeReport?.publishedAt ? (
+          <p className="text-sm text-emerald-700">
+            Published {formatDateTime(activeReport.publishedAt)}
+          </p>
+        ) : null}
       </div>
 
       {reports.length > 0 ? (
@@ -176,7 +230,10 @@ function TimetablePanel({ variant }) {
                   className={`ai-report-history-btn${activeReport?.id === report.id ? ' is-active' : ''}`}
                   onClick={() => handleOpenReport(report.id)}
                 >
-                  <span>{report.title}</span>
+                  <span>
+                    {report.title}
+                    {report.publishedAt ? ' · Published' : ''}
+                  </span>
                   <span className="text-muted">{formatDateTime(report.createdAt)}</span>
                 </button>
                 <button

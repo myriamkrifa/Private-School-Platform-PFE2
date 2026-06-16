@@ -1,8 +1,8 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
 import FormModal from '../components/FormModal'
 
-import { provisionStudentWithParent, provisionTeacher } from '../services/auth.service'
+import { getSubjects, provisionStudentWithParent, provisionTeacher } from '../services/auth.service'
 
 import {
 
@@ -38,7 +38,9 @@ const emptyForm = {
 
   teacherEmail: '',
 
-  teacherPhoneNumber: ''
+  teacherPhoneNumber: '',
+
+  teacherSubject: ''
 
 }
 
@@ -61,6 +63,10 @@ export function CreateAccountProvider({ children }) {
   const [createdCredentials, setCreatedCredentials] = useState(null)
 
   const [createdVersion, setCreatedVersion] = useState(0)
+
+  const [subjects, setSubjects] = useState([])
+
+  const [subjectsLoading, setSubjectsLoading] = useState(false)
 
 
 
@@ -89,6 +95,44 @@ export function CreateAccountProvider({ children }) {
     setModalOpen(true)
 
   }, [])
+
+
+
+  useEffect(() => {
+
+    if (!modalOpen || creationType !== 'TEACHER') return
+
+    let cancelled = false
+
+    setSubjectsLoading(true)
+
+    getSubjects()
+
+      .then((response) => {
+
+        if (!cancelled) setSubjects(response.data?.data || [])
+
+      })
+
+      .catch(() => {
+
+        if (!cancelled) setSubjects([])
+
+      })
+
+      .finally(() => {
+
+        if (!cancelled) setSubjectsLoading(false)
+
+      })
+
+    return () => {
+
+      cancelled = true
+
+    }
+
+  }, [modalOpen, creationType])
 
 
 
@@ -192,9 +236,9 @@ export function CreateAccountProvider({ children }) {
 
       } else {
 
-        if (!form.teacherFullName.trim() || !form.teacherEmail.trim() || !form.teacherPhoneNumber.trim()) {
+        if (!form.teacherFullName.trim() || !form.teacherEmail.trim() || !form.teacherPhoneNumber.trim() || !form.teacherSubject) {
 
-          setError('Please fill in teacher full name, email, and phone number.')
+          setError('Please fill in teacher full name, email, phone number, and subject.')
 
           setCreating(false)
 
@@ -210,7 +254,9 @@ export function CreateAccountProvider({ children }) {
 
           teacherEmail: form.teacherEmail.trim(),
 
-          teacherPhoneNumber: form.teacherPhoneNumber.trim()
+          teacherPhoneNumber: form.teacherPhoneNumber.trim(),
+
+          subject: form.teacherSubject
 
         })
 
@@ -481,6 +527,42 @@ export function CreateAccountProvider({ children }) {
                 <input className="modal-field" name="teacherEmail" type="email" placeholder="Teacher email" value={form.teacherEmail} onChange={handleChange} required />
 
                 <input className="modal-field" name="teacherPhoneNumber" type="tel" placeholder="Phone number" value={form.teacherPhoneNumber} onChange={handleChange} required />
+
+                <label className="modal-form-span-2 class-form-field">
+
+                  <span className="modal-field-label">Subject *</span>
+
+                  <select
+
+                    className="modal-field"
+
+                    name="teacherSubject"
+
+                    value={form.teacherSubject}
+
+                    onChange={handleChange}
+
+                    required
+
+                    disabled={subjectsLoading}
+
+                  >
+
+                    <option value="">{subjectsLoading ? 'Loading subjects...' : 'Select subject'}</option>
+
+                    {subjects.map((subject) => (
+
+                      <option key={subject.id} value={subject.title}>
+
+                        {subject.code ? `${subject.title} (${subject.code})` : subject.title}
+
+                      </option>
+
+                    ))}
+
+                  </select>
+
+                </label>
 
               </>
 

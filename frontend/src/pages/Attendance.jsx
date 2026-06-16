@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useNotifications } from '../context/NotificationContext'
 import {
+  getMyAttendance,
   getMyChildren,
   getStudentAttendance,
   justifyAbsence,
@@ -17,9 +19,12 @@ const STATUS_BADGE_CLASS = {
 }
 
 const HISTORY_STATUSES = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']
+const STUDENT_REFRESH_MS = 20000
 
 export default function Attendance() {
   const { user } = useAuth()
+  const { refreshUnreadCount } = useNotifications()
+  const isStudent = user?.role === 'STUDENT'
 
   const [studentId, setStudentId] = useState('')
   const [children, setChildren] = useState([])
@@ -28,6 +33,7 @@ export default function Attendance() {
   const [editingRecordId, setEditingRecordId] = useState(null)
   const [editStatus, setEditStatus] = useState('PRESENT')
   const [savingRecordId, setSavingRecordId] = useState(null)
+  const [loadingHistory, setLoadingHistory] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -44,21 +50,34 @@ export default function Attendance() {
       .catch((err) => setError(err.response?.data?.message || 'Failed to load children.'))
   }, [user?.role])
 
-  const loadAttendance = async (id) => {
-    if (!id) return
+  const loadAttendance = useCallback(async (id) => {
     setError('')
     setEditingRecordId(null)
+    setLoadingHistory(true)
     try {
-      const response = await getStudentAttendance(id)
+      const response = isStudent
+        ? await getMyAttendance()
+        : await getStudentAttendance(id)
       setRecords(response.data?.data || [])
+      if (isStudent) {
+        await refreshUnreadCount()
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load attendance.')
+      setRecords([])
+    } finally {
+      setLoadingHistory(false)
     }
-  }
+  }, [isStudent, refreshUnreadCount])
 
   useEffect(() => {
+    if (isStudent) {
+      loadAttendance()
+      const intervalId = setInterval(() => loadAttendance(), STUDENT_REFRESH_MS)
+      return () => clearInterval(intervalId)
+    }
     if (studentId) loadAttendance(studentId)
-  }, [studentId])
+  }, [isStudent, studentId, loadAttendance])
 
   const startModify = (row) => {
     setEditingRecordId(row.id)
@@ -98,7 +117,11 @@ export default function Attendance() {
       await justifyAbsence(justifyForm.id, { justification: justifyForm.justification })
       setJustifyForm({ id: '', justification: '' })
       setSuccess('Absence justification saved.')
-      if (studentId) await loadAttendance(studentId)
+      if (isStudent) {
+        await loadAttendance()
+      } else if (studentId) {
+        await loadAttendance(studentId)
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to justify absence.')
     }
@@ -117,7 +140,9 @@ export default function Attendance() {
       subtitle={
         user?.role === 'TEACHER' || user?.role === 'ADMIN'
           ? 'Mark daily attendance by class and subject.'
-          : 'Track daily attendance and absence history.'
+          : isStudent
+            ? 'Your attendance updates automatically when your teacher saves the class register.'
+            : 'Track daily attendance and absence history.'
       }
     >
       <div className="attendance-page space-y-4">
@@ -128,40 +153,52 @@ export default function Attendance() {
         {showHistory ? (
           <section className="page-card attendance-history">
             <header className="attendance-history-header">
-              <h3>Attendance history</h3>
-              <p className="text-sm text-slate-500">View past records by student.</p>
+              <h3>{isStudent ? 'My attendance' : 'Attendance history'}</h3>
+              <p className="text-sm text-slate-500">
+                {isStudent
+                  ? 'Records appear here as soon as your teacher marks your class.'
+                  : 'View past records by student.'}
+              </p>
             </header>
 
-            <div className="attendance-history-toolbar">
-              {user?.role === 'PARENT' ? (
-                <select
-                  className="form-input"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                >
-                  <option value="">Select child</option>
-                  {children.map((child) => (
-                    <option key={child.id} value={child.id}>{child.name}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  className="form-input"
-                  placeholder="Student ID"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                />
-              )}
-              <button className="btn btn-primary" type="button" onClick={() => loadAttendance(studentId)}>
-                Load history
-              </button>
-            </div>
+            {!isStudent ? (
+              <div className="attendance-history-toolbar">
+                {user?.role === 'PARENT' ? (
+                  <select
+                    className="form-input"
+                    value={studentId}
+                    onChange={(e) => setStudentId(e.target.value)}
+                  >
+                    <option value="">Select child</option>
+                    {children.map((child) => (
+                      <option key={child.id} value={child.id}>{child.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className="form-input"
+                    placeholder="Student ID"
+                    value={studentId}
+                    onChange={(e) => setStudentId(e.target.value)}
+                  />
+                )}
+                <button className="btn btn-primary" type="button" onClick={() => loadAttendance(studentId)}>
+                  Load history
+                </button>
+              </div>
+            ) : (
+              <p className="attendance-history-live text-sm text-slate-500">
+                Live updates every {STUDENT_REFRESH_MS / 1000} seconds. You also get a notification when attendance is saved.
+              </p>
+            )}
 
             {error ? <p className="field-error attendance-feedback">{error}</p> : null}
             {success ? <p className="attendance-success attendance-feedback">{success}</p> : null}
 
             <ul className="attendance-history-list">
-              {records.length === 0 ? (
+              {loadingHistory && records.length === 0 ? (
+                <li className="attendance-history-empty">Loading attendance…</li>
+              ) : records.length === 0 ? (
                 <li className="attendance-history-empty">No attendance records yet.</li>
               ) : (
                 records.map((row) => (
@@ -178,6 +215,11 @@ export default function Attendance() {
                       <p className="attendance-history-subject">{row.course?.title || 'General'}</p>
                       {row.class?.name ? (
                         <p className="attendance-history-class">{row.class.name}</p>
+                      ) : null}
+                      {row.updatedAt ? (
+                        <p className="attendance-history-recorded">
+                          Recorded at {new Date(row.updatedAt).toLocaleString()}
+                        </p>
                       ) : null}
                     </div>
 

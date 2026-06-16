@@ -140,10 +140,16 @@ function ParentsContent() {
   }
 
   const handleDelete = async (parent) => {
+    const childCount = parent.childrenCount ?? 0
+    const childNote =
+      childCount > 0
+        ? ` Their ${childCount} linked student${childCount === 1 ? '' : 's'} will also be removed.`
+        : ''
+
     const confirmed = await confirm({
-      title: 'Delete parent',
-      message: `Delete parent "${parent.name}"? This removes their account and student links.`,
-      confirmLabel: 'Delete',
+      title: 'Remove parent',
+      message: `Remove parent "${parent.name}"? This removes their account and student links.${childNote}`,
+      confirmLabel: 'Remove',
       cancelLabel: 'Cancel',
       variant: 'danger'
     })
@@ -153,11 +159,11 @@ function ParentsContent() {
     setError('')
     setSuccess('')
     try {
-      await deleteParent(parent.id)
+      const res = await deleteParent(parent.id)
       setParents((prev) => prev.filter((p) => p.id !== parent.id))
-      setSuccess(`Parent "${parent.name}" was deleted.`)
+      setSuccess(res.data?.message || `Parent "${parent.name}" was removed.`)
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete parent.')
+      setError(err.response?.data?.message || 'Failed to remove parent.')
     } finally {
       setDeletingId(null)
     }
@@ -202,25 +208,21 @@ function ParentsContent() {
                     </span>
                   </td>
                   <td className="actions-col">
-                    <div className="table-actions">
+                    <div className="table-actions table-actions--stacked">
                       <button
                         type="button"
-                        className="btn-icon"
-                        title="Edit parent"
-                        aria-label={`Edit ${parent.name}`}
+                        className="btn btn-primary btn-sm"
                         onClick={() => handleEdit(parent)}
                       >
-                        ✏️
+                        Edit
                       </button>
                       <button
                         type="button"
-                        className="btn-icon btn-icon-danger"
-                        title="Delete parent"
-                        aria-label={`Delete ${parent.name}`}
+                        className="btn btn-sm"
                         disabled={deletingId === parent.id}
                         onClick={() => handleDelete(parent)}
                       >
-                        {deletingId === parent.id ? '…' : '🗑️'}
+                        {deletingId === parent.id ? 'Removing…' : 'Remove'}
                       </button>
                     </div>
                   </td>

@@ -11,6 +11,7 @@ import {
   getStudentById,
   updateStudent
 } from '../services/auth.service'
+import { formatStudentId } from '../utils/studentId'
 
 const STUDENT_STATUSES = ['ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED']
 
@@ -222,7 +223,7 @@ function StudentsContent() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>ID</th>
+                <th>Student ID</th>
                 <th>Name</th>
                 <th>Email</th>
                 <th>Grade</th>
@@ -234,7 +235,7 @@ function StudentsContent() {
             <tbody>
               {students.map((student) => (
                 <tr key={student.id}>
-                  <td className="student-id-cell">{student.id}</td>
+                  <td className="student-id-cell">{formatStudentId(student.id)}</td>
                   <td>{student.name}</td>
                   <td>{student.email}</td>
                   <td>{student.grade}</td>
@@ -309,6 +310,14 @@ function StudentsContent() {
             <p className="text-sm text-slate-500">Loading student details…</p>
           ) : (
             <form id="edit-student-form" className="modal-form-grid" onSubmit={handleSave}>
+              {editingStudent?.id ? (
+                <input
+                  className="modal-field"
+                  value={formatStudentId(editingStudent.id)}
+                  readOnly
+                  aria-label="Student ID"
+                />
+              ) : null}
               <input
                 className="modal-field"
                   name="name"

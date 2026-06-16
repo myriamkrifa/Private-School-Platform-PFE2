@@ -6,6 +6,7 @@ import { useConfirm } from '../context/ConfirmDialogContext'
 import {
   deleteTeacher,
   getAllTeachers,
+  getSubjects,
   getTeacherById,
   updateTeacher
 } from '../services/auth.service'
@@ -52,6 +53,8 @@ function TeachersContent() {
   const [deletingId, setDeletingId] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [subjects, setSubjects] = useState([])
+  const [subjectsLoading, setSubjectsLoading] = useState(false)
 
   const fetchTeachers = useCallback(async () => {
     setLoading(true)
@@ -70,6 +73,28 @@ function TeachersContent() {
   useEffect(() => {
     fetchTeachers()
   }, [fetchTeachers, createdVersion])
+
+  useEffect(() => {
+    if (!editOpen) return
+
+    let cancelled = false
+    setSubjectsLoading(true)
+
+    getSubjects()
+      .then((res) => {
+        if (!cancelled) setSubjects(res.data?.data || [])
+      })
+      .catch(() => {
+        if (!cancelled) setSubjects([])
+      })
+      .finally(() => {
+        if (!cancelled) setSubjectsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [editOpen])
 
   const handleFormChange = (event) => {
     const { name, value } = event.target
@@ -269,7 +294,25 @@ function TeachersContent() {
               <input className="modal-field" name="name" placeholder="Full name" value={form.name} onChange={handleFormChange} required />
               <input className="modal-field" type="email" name="email" placeholder="Email" value={form.email} onChange={handleFormChange} required />
               <div className="form-row-2">
-                <input className="modal-field" name="subject" placeholder="Subject" value={form.subject} onChange={handleFormChange} required />
+                <select
+                  className="modal-field"
+                  name="subject"
+                  value={form.subject}
+                  onChange={handleFormChange}
+                  required
+                  disabled={subjectsLoading}
+                >
+                  <option value="">{subjectsLoading ? 'Loading subjects...' : 'Select subject'}</option>
+                  {form.subject &&
+                  !subjects.some((subject) => subject.title === form.subject) ? (
+                    <option value={form.subject}>{form.subject}</option>
+                  ) : null}
+                  {subjects.map((subject) => (
+                    <option key={subject.id} value={subject.title}>
+                      {subject.code ? `${subject.title} (${subject.code})` : subject.title}
+                    </option>
+                  ))}
+                </select>
                 <select className="modal-field" name="status" value={form.status} onChange={handleFormChange}>
                   {TEACHER_STATUSES.map((status) => (
                     <option key={status} value={status}>{status}</option>

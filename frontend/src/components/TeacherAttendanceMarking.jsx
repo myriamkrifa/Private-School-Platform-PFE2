@@ -8,6 +8,7 @@ import {
   getClassAttendance,
   getTeacherClasses
 } from '../services/auth.service'
+import { formatStudentId } from '../utils/studentId'
 
 const MARKING_STATUSES = [
   { value: 'PRESENT', label: 'Present', emoji: '✅', tone: 'present' },
@@ -28,7 +29,7 @@ function studentInitials(name = '') {
 function studentRollLabel(student) {
   if (student.rollNumber) return String(student.rollNumber)
   if (student.grade && student.grade !== 'N/A') return student.grade
-  return `ID-${student.id}`
+  return formatStudentId(student.id)
 }
 
 function StudentAvatar({ student }) {
