@@ -1,4 +1,5 @@
 const prisma = require('../prisma')
+const { getTeacherClassIds } = require('../services/teacherClassAccess.service')
 
 const startOfDay = (date = new Date()) => {
   const day = new Date(date)
@@ -120,6 +121,7 @@ exports.getTeacherDashboard = async (req, res) => {
 
     const [
       assignments,
+      linkedClasses,
       recentGrades,
       recentAssignments,
       recentMessages,
@@ -132,6 +134,14 @@ exports.getTeacherDashboard = async (req, res) => {
           course: { select: { id: true, title: true, code: true, coefficient: true } }
         }
       }),
+      getTeacherClassIds(teacherProfile.id).then((classIds) => (
+        classIds.length
+          ? prisma.class.findMany({
+              where: { id: { in: classIds } },
+              select: { id: true, name: true, room: true, level: true }
+            })
+          : []
+      )),
       prisma.grade.findMany({
         where: { teacherId: userId },
         orderBy: { recordedAt: 'desc' },
@@ -169,6 +179,9 @@ exports.getTeacherDashboard = async (req, res) => {
     assignments.forEach((row) => {
       if (row.class) classMap.set(row.class.id, row.class)
       if (row.course) subjectMap.set(row.course.id, row.course)
+    })
+    linkedClasses.forEach((klass) => {
+      if (!classMap.has(klass.id)) classMap.set(klass.id, klass)
     })
 
     return res.json({
@@ -442,5 +455,207 @@ exports.getStudentDashboard = async (req, res) => {
     })
   } catch (error) {
     return res.status(500).json({ message: 'Error loading student dashboard.', error: error.message })
+  }
+}
+
+// ─────────────────────────────────────────────
+// GET /api/calendar/events
+// ─────────────────────────────────────────────
+exports.getCalendarEvents = async (req, res) => {
+  try {
+    const role = req.user?.role
+    const userId = req.user?.id
+
+    let assignmentWhere = {}
+    if (role === 'TEACHER') {
+      assignmentWhere = { teacherId: userId }
+    } else if (role === 'STUDENT') {
+      const student = await prisma.student.findUnique({
+        where: { userId },
+        select: { id: true, classId: true }
+      })
+      if (!student) {
+        return res.json({ success: true, data: [] })
+      }
+      assignmentWhere = {
+        OR: [
+          { targetType: 'FULL_CLASS', classId: student.classId },
+          { recipients: { some: { studentId: student.id } } }
+        ]
+      }
+    } else if (role === 'PARENT') {
+      const links = await prisma.parentStudent.findMany({
+        where: { parentId: userId },
+        select: { student: { select: { id: true, classId: true } } }
+      })
+      const childIds = links.map((link) => link.student.id)
+      const classIds = [...new Set(links.map((link) => link.student.classId).filter(Boolean))]
+      if (childIds.length === 0) {
+        return res.json({ success: true, data: [] })
+      }
+      assignmentWhere = {
+        OR: [
+          { targetType: 'FULL_CLASS', classId: { in: classIds } },
+          { recipients: { some: { studentId: { in: childIds } } } }
+        ]
+      }
+    }
+
+    const [assignments, academicYears, announcements, customEvents] = await Promise.all([
+      prisma.assignment.findMany({
+        where: assignmentWhere,
+        select: {
+          id: true,
+          title: true,
+          dueDate: true,
+          class: { select: { name: true } },
+          course: { select: { title: true } }
+        },
+        orderBy: { dueDate: 'asc' }
+      }),
+      role === 'ADMIN'
+        ? prisma.academicYear.findMany({
+            select: { id: true, name: true, startDate: true, endDate: true },
+            orderBy: { startDate: 'asc' }
+          })
+        : Promise.resolve([]),
+      prisma.announcement.findMany({
+        select: { id: true, title: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 50
+      }),
+      prisma.calendarEvent.findMany({
+        select: { id: true, title: true, description: true, date: true },
+        orderBy: { date: 'asc' }
+      })
+    ])
+
+    const events = []
+
+    for (const assignment of assignments) {
+      events.push({
+        id: `assignment-${assignment.id}`,
+        type: 'assignment',
+        date: assignment.dueDate,
+        title: assignment.title,
+        detail: [assignment.class?.name, assignment.course?.title].filter(Boolean).join(' · ')
+      })
+    }
+
+    for (const year of academicYears) {
+      events.push({
+        id: `year-start-${year.id}`,
+        type: 'academic_year',
+        date: year.startDate,
+        title: `${year.name} starts`,
+        detail: 'Academic year'
+      })
+      events.push({
+        id: `year-end-${year.id}`,
+        type: 'academic_year',
+        date: year.endDate,
+        title: `${year.name} ends`,
+        detail: 'Academic year'
+      })
+    }
+
+    for (const announcement of announcements) {
+      events.push({
+        id: `announcement-${announcement.id}`,
+        type: 'announcement',
+        date: announcement.createdAt,
+        title: announcement.title,
+        detail: 'Announcement'
+      })
+    }
+
+    for (const customEvent of customEvents) {
+      events.push({
+        id: `custom-${customEvent.id}`,
+        eventId: customEvent.id,
+        type: 'custom',
+        date: customEvent.date,
+        title: customEvent.title,
+        detail: customEvent.description || 'School event',
+        canDelete: role === 'ADMIN'
+      })
+    }
+
+    events.sort((a, b) => new Date(a.date) - new Date(b.date))
+
+    return res.json({ success: true, data: events })
+  } catch (error) {
+    return res.status(500).json({ message: 'Error loading calendar events.', error: error.message })
+  }
+}
+
+// ─────────────────────────────────────────────
+// POST /api/calendar/events
+// ─────────────────────────────────────────────
+exports.createCalendarEvent = async (req, res) => {
+  try {
+    const { title, date, description } = req.body
+    if (!title?.trim() || !date) {
+      return res.status(400).json({ message: 'Please provide title and date.' })
+    }
+
+    let parsedDate
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const [year, month, day] = date.split('-').map(Number)
+      parsedDate = new Date(year, month - 1, day, 12, 0, 0, 0)
+    } else {
+      parsedDate = new Date(date)
+    }
+    if (Number.isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid date.' })
+    }
+
+    const event = await prisma.calendarEvent.create({
+      data: {
+        title: title.trim(),
+        description: description?.trim() || null,
+        date: parsedDate,
+        createdById: req.user?.id
+      }
+    })
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        id: `custom-${event.id}`,
+        eventId: event.id,
+        type: 'custom',
+        date: event.date,
+        title: event.title,
+        detail: event.description || 'School event',
+        canDelete: true
+      },
+      message: 'Calendar event created.'
+    })
+  } catch (error) {
+    return res.status(500).json({ message: 'Error creating calendar event.', error: error.message })
+  }
+}
+
+// ─────────────────────────────────────────────
+// DELETE /api/calendar/events/:id
+// ─────────────────────────────────────────────
+exports.deleteCalendarEvent = async (req, res) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10)
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ message: 'Invalid event id.' })
+    }
+
+    const existing = await prisma.calendarEvent.findUnique({ where: { id } })
+    if (!existing) {
+      return res.status(404).json({ message: 'Calendar event not found.' })
+    }
+
+    await prisma.calendarEvent.delete({ where: { id } })
+
+    return res.json({ success: true, message: 'Calendar event deleted.' })
+  } catch (error) {
+    return res.status(500).json({ message: 'Error deleting calendar event.', error: error.message })
   }
 }

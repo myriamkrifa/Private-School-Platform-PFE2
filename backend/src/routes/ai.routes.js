@@ -17,6 +17,7 @@ router.post('/chat', aiController.sendMessage)
 
 router.get('/reports', aiController.listReports)
 router.get('/reports/:id', aiController.getReport)
+router.delete('/reports/:id', aiController.deleteReport)
 router.post('/reports/generate', aiController.generateReport)
 
 module.exports = router

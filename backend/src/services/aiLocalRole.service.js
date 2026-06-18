@@ -226,6 +226,7 @@ function answerStudent(message, ctx) {
 function generateRoleLocalReport(reportType, reportData) {
   const ctx = reportData.context
   const month = new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
+  const assignments = reportData.assignments || []
 
   switch (reportType) {
     case 'LESSON_PLAN':

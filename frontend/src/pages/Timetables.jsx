@@ -3,6 +3,7 @@ import { CalendarRange, FileText, GraduationCap, Loader2 } from 'lucide-react'
 import { Navigate, NavLink } from 'react-router-dom'
 import DashboardShell from '../components/DashboardShell'
 import ReportContent from '../components/ReportContent'
+import { DeleteIconButton } from '../components/TableIconButtons'
 import { useAuth } from '../context/AuthContext'
 import {
   TIMETABLE_PAGES,
@@ -236,13 +237,11 @@ function TimetablePanel({ variant }) {
                   </span>
                   <span className="text-muted">{formatDateTime(report.createdAt)}</span>
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
+                <DeleteIconButton
+                  label="Delete report"
+                  className="ai-session-delete"
                   onClick={() => handleDeleteReport(report.id)}
-                >
-                  Delete
-                </button>
+                />
               </li>
             ))}
           </ul>

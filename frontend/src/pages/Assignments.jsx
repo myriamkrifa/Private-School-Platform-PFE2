@@ -5,7 +5,6 @@ import {
   getAllCourses,
   getAssignmentSubmissions,
   getCourseAssignments,
-  getMyChildren,
   getTeacherClasses,
   getTeacherClassStudents,
   getTeacherClassSubjects,
@@ -35,12 +34,48 @@ export default function Assignments() {
   const [assignments, setAssignments] = useState([])
   const [submissions, setSubmissions] = useState([])
   const [courseId, setCourseId] = useState('')
-  const [assignmentId, setAssignmentId] = useState('')
+  const [submitSubjectId, setSubmitSubjectId] = useState('')
+  const [submitSubjectAssignments, setSubmitSubjectAssignments] = useState([])
+  const [reviewSubjectId, setReviewSubjectId] = useState('')
+  const [reviewSubjectAssignments, setReviewSubjectAssignments] = useState([])
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState('')
   const [createForm, setCreateForm] = useState(initialCreateForm)
-  const [submitForm, setSubmitForm] = useState({ assignmentId: '', content: '', fileUrl: '' })
+  const [submitForm, setSubmitForm] = useState({ content: '', fileUrl: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  const loadSubjectAssignments = async (subjectId, target = 'submit') => {
+    if (!subjectId) {
+      if (target === 'submit') {
+        setSubmitSubjectAssignments([])
+        setSelectedAssignmentId('')
+      } else {
+        setReviewSubjectAssignments([])
+        setSelectedAssignmentId('')
+      }
+      return
+    }
+    try {
+      const response = await getCourseAssignments(subjectId)
+      const loaded = response.data?.data || []
+      if (target === 'submit') {
+        setSubmitSubjectAssignments(loaded)
+        setSelectedAssignmentId('')
+      } else {
+        setReviewSubjectAssignments(loaded)
+        setSelectedAssignmentId('')
+      }
+    } catch {
+      if (target === 'submit') setSubmitSubjectAssignments([])
+      else setReviewSubjectAssignments([])
+    }
+  }
+
+  const assignmentOptionLabel = (assignment) => {
+    const due = new Date(assignment.dueDate).toLocaleDateString()
+    return `${assignment.title} · due ${due}`
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -56,7 +91,7 @@ export default function Assignments() {
       }
     }
     load()
-  }, [isTeacher])
+  }, [isTeacher, isStudent, user?.role])
 
   useEffect(() => {
     const load = async () => {
@@ -117,6 +152,8 @@ export default function Assignments() {
       })
       setCreateForm(initialCreateForm)
       setSuccess('Assignment created.')
+      if (submitSubjectId) await loadSubjectAssignments(submitSubjectId, 'submit')
+      if (reviewSubjectId) await loadSubjectAssignments(reviewSubjectId, 'review')
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create assignment.')
     } finally {
@@ -128,12 +165,21 @@ export default function Assignments() {
     event.preventDefault()
     setError('')
     setSuccess('')
+    if (!submitSubjectId) {
+      setError('Select a subject first.')
+      return
+    }
+    if (!selectedAssignmentId) {
+      setError('Select an assignment first.')
+      return
+    }
     try {
-      await submitAssignment(submitForm.assignmentId, {
+      await submitAssignment(selectedAssignmentId, {
         content: submitForm.content,
         fileUrl: submitForm.fileUrl
       })
-      setSubmitForm({ assignmentId: '', content: '', fileUrl: '' })
+      setSubmitForm({ content: '', fileUrl: '' })
+      setSelectedAssignmentId('')
       setSuccess('Submission saved.')
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to submit assignment.')
@@ -259,13 +305,39 @@ export default function Assignments() {
           <section className="page-card">
             <form onSubmit={handleSubmitAssignment} className="page-card">
               <h3>Submit assignment</h3>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <input
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <select
                   className="form-input"
-                  placeholder="Assignment ID"
-                  value={submitForm.assignmentId}
-                  onChange={(e) => setSubmitForm({ ...submitForm, assignmentId: e.target.value })}
-                />
+                  value={submitSubjectId}
+                  onChange={(e) => {
+                    const id = e.target.value
+                    setSubmitSubjectId(id)
+                    loadSubjectAssignments(id, 'submit')
+                  }}
+                >
+                  <option value="">Select subject</option>
+                  {allCourses.map((course) => (
+                    <option key={course.id} value={course.id}>{course.title}</option>
+                  ))}
+                </select>
+                {submitSubjectId ? (
+                  <select
+                    className="form-input"
+                    value={selectedAssignmentId}
+                    onChange={(e) => setSelectedAssignmentId(e.target.value)}
+                  >
+                    <option value="">
+                      {submitSubjectAssignments.length === 0
+                        ? 'No homework for this subject yet'
+                        : 'Select assignment'}
+                    </option>
+                    {submitSubjectAssignments.map((assignment) => (
+                      <option key={assignment.id} value={assignment.id}>
+                        {assignmentOptionLabel(assignment)}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
                 <input
                   className="form-input md:col-span-2"
                   placeholder="File URL (optional)"
@@ -289,13 +361,44 @@ export default function Assignments() {
             <h3>Submissions per assignment</h3>
             <div className="page-card">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <input
+                <select
                   className="form-input"
-                  placeholder="Assignment ID"
-                  value={assignmentId}
-                  onChange={(e) => setAssignmentId(e.target.value)}
-                />
-                <button className="btn btn-primary" type="button" onClick={() => loadSubmissions(assignmentId)}>
+                  value={reviewSubjectId}
+                  onChange={(e) => {
+                    const id = e.target.value
+                    setReviewSubjectId(id)
+                    loadSubjectAssignments(id, 'review')
+                  }}
+                >
+                  <option value="">Select subject</option>
+                  {allCourses.map((course) => (
+                    <option key={course.id} value={course.id}>{course.title}</option>
+                  ))}
+                </select>
+                {reviewSubjectId ? (
+                  <select
+                    className="form-input"
+                    value={selectedAssignmentId}
+                    onChange={(e) => setSelectedAssignmentId(e.target.value)}
+                  >
+                    <option value="">
+                      {reviewSubjectAssignments.length === 0
+                        ? 'No assignments for this subject'
+                        : 'Select assignment'}
+                    </option>
+                    {reviewSubjectAssignments.map((assignment) => (
+                      <option key={assignment.id} value={assignment.id}>
+                        {assignmentOptionLabel(assignment)}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  onClick={() => loadSubmissions(selectedAssignmentId)}
+                  disabled={!selectedAssignmentId}
+                >
                   Load submissions
                 </button>
               </div>

@@ -1,4 +1,5 @@
 const prisma = require('../prisma')
+const bcrypt = require('bcryptjs')
 
 const normalizeIdentityCardNumber = (value) => {
   return String(value || '').trim().toUpperCase().replace(/\s+/g, '')
@@ -151,6 +152,45 @@ exports.updateParent = async (req, res) => {
   }
 }
 
+exports.resetParentPassword = async (req, res) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10)
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: 'Invalid parent id.' })
+    }
+
+    const parent = await prisma.user.findFirst({
+      where: { id, role: 'PARENT' },
+      select: { id: true, email: true, name: true, identityCardNumber: true }
+    })
+    if (!parent) {
+      return res.status(404).json({ message: 'Parent not found.' })
+    }
+    if (!parent.identityCardNumber) {
+      return res.status(400).json({ message: 'Parent has no identity card number on file.' })
+    }
+
+    const plainPassword = `Parent@${normalizeIdentityCardNumber(parent.identityCardNumber)}`
+    const hashedPassword = await bcrypt.hash(plainPassword, 10)
+
+    await prisma.user.update({
+      where: { id },
+      data: { password: hashedPassword, isFirstLogin: true }
+    })
+
+    res.json({
+      success: true,
+      message: 'Parent password reset.',
+      data: {
+        email: parent.email,
+        password: plainPassword
+      }
+    })
+  } catch (error) {
+    res.status(500).json({ message: 'Error resetting parent password.', error: error.message })
+  }
+}
+
 exports.deleteParent = async (req, res) => {
   try {
     const id = Number.parseInt(req.params.id, 10)
@@ -159,15 +199,64 @@ exports.deleteParent = async (req, res) => {
     }
 
     const existing = await prisma.user.findFirst({
-      where: { id, role: 'PARENT' }
+      where: { id, role: 'PARENT' },
+      include: {
+        parentLinks: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                name: true,
+                userId: true
+              }
+            }
+          }
+        }
+      }
     })
     if (!existing) {
       return res.status(404).json({ message: 'Parent not found.' })
     }
 
-    await prisma.user.delete({ where: { id } })
-    res.json({ success: true, message: 'Parent deleted.' })
+    const studentsToDelete = []
+    const seenStudentIds = new Set()
+
+    for (const link of existing.parentLinks) {
+      const student = link.student
+      if (!student || seenStudentIds.has(student.id)) continue
+      seenStudentIds.add(student.id)
+      studentsToDelete.push(student)
+    }
+
+    await prisma.$transaction(async (tx) => {
+      for (const student of studentsToDelete) {
+        await tx.student.delete({ where: { id: student.id } })
+        if (student.userId) {
+          await tx.user.delete({ where: { id: student.userId } })
+        }
+      }
+
+      await tx.user.delete({ where: { id } })
+    })
+
+    let message = `Parent "${existing.name}" removed.`
+    if (studentsToDelete.length > 0) {
+      message += ` ${studentsToDelete.length} linked student(s) also removed.`
+    }
+
+    res.json({
+      success: true,
+      message,
+      data: {
+        parentId: id,
+        studentsRemoved: studentsToDelete.length,
+        studentNames: studentsToDelete.map((s) => s.name)
+      }
+    })
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'Parent not found.' })
+    }
     res.status(500).json({ message: 'Error deleting parent.', error: error.message })
   }
 }

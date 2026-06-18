@@ -1,5 +1,6 @@
 const prisma = require('../prisma')
 const { buildSchoolDataContext, startOfMonth, endOfMonth } = require('./aiContext.service')
+const { prepareAssignmentsWithAutoRooms } = require('./aiTimetable.service')
 
 async function getTeacherScope(userId) {
   const teacher = await prisma.teacher.findUnique({
@@ -181,6 +182,7 @@ async function buildParentContext(userId) {
       id: child.id,
       name: child.name,
       grade: child.grade,
+      classId: child.classId,
       className: child.class?.name || 'Unassigned',
       recentGrades: child.grades.map((g) => ({
         subject: g.subject,
@@ -280,9 +282,11 @@ async function buildStudentContext(userId) {
       id: profile.id,
       name: profile.name,
       grade: profile.grade,
+      classId: profile.classId,
       className: profile.class?.name,
       room: profile.class?.room,
-      level: profile.class?.level
+      level: profile.class?.level,
+      class: profile.class ? { id: profile.class.id, name: profile.class.name } : null
     },
     subjects,
     grades: grades.map((g) => ({
@@ -332,6 +336,35 @@ async function buildContextForUser(user) {
 
 async function buildReportDataForRole(role, reportType, userId) {
   const context = await buildContextForUser({ id: userId, role })
+
+  if (reportType === 'TIMETABLE') {
+    const { assignments: allAssignments } = await prepareAssignmentsWithAutoRooms()
+
+    if (role === 'TEACHER') {
+      const scope = await getTeacherScope(userId)
+      const assignments = allAssignments.filter((row) => row.teacherId === scope.teacher?.id)
+      return { type: reportType, context, role, assignments }
+    }
+
+    if (role === 'STUDENT') {
+      const classId = context.profile?.classId || context.profile?.class?.id
+      const assignments = classId
+        ? allAssignments.filter((row) => row.classId === classId)
+        : []
+      return { type: reportType, context, role, assignments }
+    }
+
+    if (role === 'PARENT') {
+      const classIds = [...new Set(
+        (context.children || []).map((child) => child.classId).filter(Boolean)
+      )]
+      const assignments = allAssignments.filter((row) => classIds.includes(row.classId))
+      return { type: reportType, context, role, assignments, classIds }
+    }
+
+    return { type: reportType, context, role, assignments: allAssignments }
+  }
+
   return { type: reportType, context, role }
 }
 

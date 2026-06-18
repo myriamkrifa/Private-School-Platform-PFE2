@@ -1,5 +1,6 @@
 const prisma = require('../prisma')
 const { createAuditLog } = require('./audit.controller')
+const { parseStudentIdInput } = require('../utils/studentId.util')
 
 const GRADE_TYPES = ['TEST', 'EXAM', 'HOMEWORK', 'ORAL', 'PROJECT']
 
@@ -16,6 +17,8 @@ const isValidScore = (value) => {
   return Number.isFinite(n) && n >= 0 && n <= 20
 }
 
+const parseStudentIdParam = (value) => parseStudentIdInput(value)
+
 const notifyParentsOnGrade = async (studentId, subject) => {
   const links = await prisma.parentStudent.findMany({
     where: { studentId: Number(studentId) },
@@ -30,6 +33,29 @@ const notifyParentsOnGrade = async (studentId, subject) => {
       message: `New grade posted for ${subject}.`
     }))
   })
+}
+
+const notifyStudentOnGrade = async (studentId, subject, score, title, gradeType) => {
+  const student = await prisma.student.findUnique({
+    where: { id: Number(studentId) },
+    select: { userId: true }
+  })
+  if (!student?.userId) return
+
+  const evaluation = title ? `"${title}"` : (gradeType || 'evaluation').toLowerCase()
+  await prisma.notification.create({
+    data: {
+      userId: student.userId,
+      type: 'GRADE',
+      title: 'New grade posted',
+      message: `You received ${score}/20 in ${subject} for ${evaluation}.`
+    }
+  })
+}
+
+const notifyGradeRecorded = async (studentId, subject, score, title, gradeType) => {
+  await notifyStudentOnGrade(studentId, subject, score, title, gradeType)
+  await notifyParentsOnGrade(studentId, subject)
 }
 
 exports.createGrade = async (req, res) => {
@@ -100,7 +126,7 @@ exports.createGrade = async (req, res) => {
       entityId: created.id,
       after: created
     })
-    await notifyParentsOnGrade(parsedStudentId, finalSubject)
+    await notifyGradeRecorded(parsedStudentId, finalSubject, Number(score), title, finalType)
 
     return res.status(201).json({ success: true, data: created, message: 'Grade recorded.' })
   } catch (error) {
@@ -180,7 +206,13 @@ exports.bulkUpsertGrades = async (req, res) => {
 
     // Notifications + audit (one entry per affected student)
     for (const entry of grades) {
-      await notifyParentsOnGrade(entry.studentId, subject)
+      await notifyGradeRecorded(
+        entry.studentId,
+        subject,
+        Number(entry.score),
+        title,
+        finalType
+      )
     }
     await createAuditLog({
       actorId: req.user?.id,
@@ -219,7 +251,7 @@ exports.getGradesByClassSubject = async (req, res) => {
     const grades = await prisma.grade.findMany({
       where: { classId, courseId },
       include: { student: { select: { id: true, name: true } } },
-      orderBy: { recordedAt: 'desc' }
+      orderBy: [{ recordedAt: 'desc' }, { updatedAt: 'desc' }]
     })
     return res.json({ success: true, data: grades })
   } catch (error) {
@@ -320,7 +352,10 @@ exports.getClassAverage = async (req, res) => {
 
 exports.getStudentGrades = async (req, res) => {
   try {
-    const studentId = Number.parseInt(req.params.studentId, 10)
+    const studentId = parseStudentIdParam(req.params.studentId)
+    if (!studentId) {
+      return res.status(400).json({ message: 'Please provide a valid student ID.' })
+    }
 
     if (req.user?.role === 'STUDENT') {
       const profile = await prisma.student.findUnique({
@@ -343,7 +378,7 @@ exports.getStudentGrades = async (req, res) => {
     const grades = await prisma.grade.findMany({
       where: { studentId },
       include: { course: { select: { id: true, title: true, code: true, coefficient: true } } },
-      orderBy: { recordedAt: 'desc' }
+      orderBy: [{ recordedAt: 'desc' }, { updatedAt: 'desc' }]
     })
     return res.json({ success: true, data: grades })
   } catch (error) {
@@ -353,7 +388,29 @@ exports.getStudentGrades = async (req, res) => {
 
 exports.getStudentAverage = async (req, res) => {
   try {
-    const studentId = Number.parseInt(req.params.studentId, 10)
+    const studentId = parseStudentIdParam(req.params.studentId)
+    if (!studentId) {
+      return res.status(400).json({ message: 'Please provide a valid student ID.' })
+    }
+
+    if (req.user?.role === 'STUDENT') {
+      const profile = await prisma.student.findUnique({
+        where: { userId: req.user.id },
+        select: { id: true }
+      })
+      if (!profile || profile.id !== studentId) {
+        return res.status(403).json({ message: 'Forbidden.' })
+      }
+    }
+    if (req.user?.role === 'PARENT') {
+      const link = await prisma.parentStudent.findFirst({
+        where: { parentId: req.user.id, studentId }
+      })
+      if (!link) {
+        return res.status(403).json({ message: 'Forbidden. This child is not linked to your account.' })
+      }
+    }
+
     const grades = await prisma.grade.findMany({
       where: { studentId },
       include: { course: { select: { coefficient: true } } }
@@ -388,12 +445,68 @@ exports.getStudentAverage = async (req, res) => {
   }
 }
 
+exports.getMyGrades = async (req, res) => {
+  try {
+    if (req.user?.role !== 'STUDENT') {
+      return res.status(403).json({ message: 'Forbidden.' })
+    }
+
+    const profile = await prisma.student.findUnique({
+      where: { userId: req.user.id },
+      select: { id: true }
+    })
+    if (!profile) {
+      return res.json({ success: true, data: [] })
+    }
+
+    const grades = await prisma.grade.findMany({
+      where: { studentId: profile.id },
+      include: { course: { select: { id: true, title: true, code: true, coefficient: true } } },
+      orderBy: [{ recordedAt: 'desc' }, { updatedAt: 'desc' }]
+    })
+    return res.json({ success: true, data: grades })
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching grades.', error: error.message })
+  }
+}
+
+exports.getMyAverage = async (req, res) => {
+  try {
+    if (req.user?.role !== 'STUDENT') {
+      return res.status(403).json({ message: 'Forbidden.' })
+    }
+
+    const profile = await prisma.student.findUnique({
+      where: { userId: req.user.id },
+      select: { id: true }
+    })
+    if (!profile) {
+      return res.json({
+        success: true,
+        average: null,
+        percentage: null,
+        count: 0,
+        weightedAverage: null
+      })
+    }
+
+    req.params.studentId = String(profile.id)
+    return exports.getStudentAverage(req, res)
+  } catch (error) {
+    return res.status(500).json({ message: 'Error calculating average.', error: error.message })
+  }
+}
+
 exports.exportStudentGrades = async (req, res) => {
   try {
-    const studentId = Number.parseInt(req.params.studentId, 10)
+    const studentId = parseStudentIdParam(req.params.studentId)
+    if (!studentId) {
+      return res.status(400).json({ message: 'Please provide a valid student ID.' })
+    }
+
     const grades = await prisma.grade.findMany({
       where: { studentId },
-      orderBy: { recordedAt: 'desc' }
+      orderBy: [{ recordedAt: 'desc' }, { updatedAt: 'desc' }]
     })
 
     const header = 'subject,type,title,score,maxScore,recordedAt,comments\n'

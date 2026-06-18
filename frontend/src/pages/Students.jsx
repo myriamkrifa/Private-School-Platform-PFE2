@@ -12,6 +12,7 @@ import {
   updateStudent
 } from '../services/auth.service'
 import { formatStudentId } from '../utils/studentId'
+import { DeleteIconButton, EditIconButton } from '../components/TableIconButtons'
 
 const STUDENT_STATUSES = ['ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED']
 
@@ -243,26 +244,16 @@ function StudentsContent() {
                   <td>{student.status || 'ACTIVE'}</td>
                   <td className="actions-col">
                     <div className="table-actions">
-                      <button
-                        type="button"
-                        className="btn-icon"
-                        title="Edit student"
-                        aria-label={`Edit ${student.name}`}
+                      <EditIconButton
+                        label={`Edit ${student.name}`}
                         onClick={() => handleEdit(student)}
-                      >
-                        ✏️
-                      </button>
+                      />
                       {isAdmin ? (
-                        <button
-                          type="button"
-                          className="btn-icon btn-icon-danger"
-                          title="Delete student"
-                          aria-label={`Delete ${student.name}`}
-                          disabled={deletingId === student.id}
+                        <DeleteIconButton
+                          label={`Delete ${student.name}`}
+                          loading={deletingId === student.id}
                           onClick={() => handleDelete(student)}
-                        >
-                          {deletingId === student.id ? '…' : '🗑️'}
-                        </button>
+                        />
                       ) : null}
                     </div>
                   </td>
@@ -410,8 +401,18 @@ function StudentsContent() {
 }
 
 export default function Students() {
+  const { user } = useAuth()
+  const isTeacher = user?.role === 'TEACHER'
+
   return (
-    <DashboardShell title="Students" subtitle="Browse the student list and monitor their status.">
+    <DashboardShell
+      title="Students"
+      subtitle={
+        isTeacher
+          ? 'Students enrolled in your assigned classes.'
+          : 'Browse the student list and monitor their status.'
+      }
+    >
       <StudentsContent />
     </DashboardShell>
   )

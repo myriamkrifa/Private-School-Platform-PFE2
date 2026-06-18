@@ -1,4 +1,5 @@
 const prisma = require('../prisma')
+const { prepareAssignmentsWithAutoRooms } = require('./aiTimetable.service')
 
 const startOfMonth = (date = new Date()) => {
   const d = new Date(date)
@@ -216,6 +217,11 @@ async function buildReportData(reportType) {
       return { type: reportType, context, teachers: context.teachers }
     case 'UNPAID_FEES':
       return { type: reportType, context, unpaidFees: context.unpaidFees }
+    case 'TIMETABLE_STUDENTS':
+    case 'TIMETABLE_TEACHERS': {
+      const { assignments, rooms } = await prepareAssignmentsWithAutoRooms()
+      return { type: reportType, context, assignments, rooms }
+    }
     default:
       return { type: reportType, context }
   }

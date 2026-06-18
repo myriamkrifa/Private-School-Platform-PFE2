@@ -4,11 +4,11 @@ import {
   FileText,
   Loader2,
   MessageSquare,
-  Plus,
-  Trash2
+  Plus
 } from 'lucide-react'
 import DashboardShell from '../components/DashboardShell'
 import ReportContent from '../components/ReportContent'
+import { DeleteIconButton } from '../components/TableIconButtons'
 import { useAuth } from '../context/AuthContext'
 import { getFallbackCapabilities } from '../config/aiAssistantConfig'
 import API from '../services/apiClient'
@@ -67,7 +67,7 @@ export default function AIAssistant() {
   const [generatingReport, setGeneratingReport] = useState(null)
   const [panel, setPanel] = useState('chat')
   const [showPromptMenu, setShowPromptMenu] = useState(false)
-  const chatEndRef = useRef(null)
+  const chatMessagesRef = useRef(null)
   const promptMenuRef = useRef(null)
 
   const isChatIdle = messages.length === 0 && !loadingChat
@@ -81,7 +81,9 @@ export default function AIAssistant() {
   }
 
   const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const container = chatMessagesRef.current
+    if (!container) return
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
   }
 
   const loadSessions = useCallback(async () => {
@@ -168,6 +170,7 @@ export default function AIAssistant() {
   const showReports = reportOptions.length > 0
 
   useEffect(() => {
+    if (messages.length === 0 && !loadingChat) return
     scrollToBottom()
   }, [messages, loadingChat])
 
@@ -376,15 +379,11 @@ export default function AIAssistant() {
                           {session._count?.messages || 0} messages · {formatDateTime(session.updatedAt)}
                         </span>
                       </button>
-                      <button
-                        type="button"
-                        className="btn-icon ai-session-delete"
-                        title="Delete conversation"
-                        aria-label="Delete conversation"
+                      <DeleteIconButton
+                        label="Delete conversation"
+                        className="ai-session-delete"
                         onClick={() => handleDeleteSession(session.id)}
-                      >
-                        <Trash2 size={16} aria-hidden />
-                      </button>
+                      />
                     </div>
                   )
                 })
@@ -408,15 +407,11 @@ export default function AIAssistant() {
                       <span className="ai-report-item-title">{report.title}</span>
                       <span className="ai-session-meta">{formatDateTime(report.createdAt)}</span>
                     </button>
-                    <button
-                      type="button"
-                      className="btn-icon ai-session-delete"
-                      title="Delete report"
-                      aria-label="Delete report"
+                    <DeleteIconButton
+                      label="Delete report"
+                      className="ai-session-delete"
                       onClick={() => handleDeleteReport(report.id)}
-                    >
-                      <Trash2 size={16} aria-hidden />
-                    </button>
+                    />
                   </div>
                 ))
               )}
@@ -429,7 +424,7 @@ export default function AIAssistant() {
             <div
               className={`ai-chat-panel page-card${isChatIdle ? ' ai-chat-panel--idle' : ''}`}
             >
-              <div className="ai-chat-messages">
+              <div className="ai-chat-messages" ref={chatMessagesRef}>
                 {messages.map((msg, index) => (
                     <div
                       key={msg.id || `${msg.role}-${index}`}
@@ -460,7 +455,6 @@ export default function AIAssistant() {
                     </div>
                   </div>
                 ) : null}
-                <div ref={chatEndRef} />
               </div>
 
               <div className="ai-composer-wrap" ref={promptMenuRef}>

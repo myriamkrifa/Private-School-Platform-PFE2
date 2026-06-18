@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs')
 const crypto = require('crypto')
 const { createAuditLog } = require('./audit.controller')
 const { sendAccountApprovedEmail, sendParentAccountEmail } = require('../services/email.service')
+const { findOrCreateClassByGrade } = require('../services/classGrade.service')
 
 const ALLOWED_ROLES = ['ADMIN', 'TEACHER', 'PARENT', 'STUDENT']
 
@@ -18,6 +19,16 @@ const normalizeIdentityCardNumber = (value) => {
 
 const sanitizeEmailLocalPart = (value) => {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+const buildUniqueStudentEmail = async (tx, studentFullName) => {
+  const local = sanitizeEmailLocalPart(studentFullName) || 'student'
+  let candidate = `student.${local}@school.com`
+  const conflict = await tx.user.findUnique({ where: { email: candidate } })
+  if (conflict) {
+    candidate = `student.${local}.${Date.now()}@school.com`
+  }
+  return candidate
 }
 
 const listUsers = async (_req, res) => {
@@ -132,39 +143,64 @@ const provisionStudentWithParent = async (req, res) => {
     const {
       studentFullName,
       studentEmail,
+      classId,
+      educationLevel,
+      grade,
       parentName,
       parentIdentityCardNumber,
       parentPhoneNumber,
       parentEmail
     } = req.body
 
-    if (!studentFullName || !studentEmail || !parentName || !parentIdentityCardNumber || !parentPhoneNumber) {
+    const hasClassId = classId !== undefined && classId !== null && classId !== ''
+    const hasGradeSelection = educationLevel && grade
+
+    if (
+      !studentFullName ||
+      !parentName ||
+      !parentIdentityCardNumber ||
+      !parentPhoneNumber ||
+      (!hasClassId && !hasGradeSelection)
+    ) {
       return res.status(400).json({
-        message: 'Please provide studentFullName, studentEmail, parentName, parentIdentityCardNumber, and parentPhoneNumber.'
+        message:
+          'Please provide studentFullName, education level and grade, parentName, parentIdentityCardNumber, and parentPhoneNumber.'
       })
+    }
+
+    let parsedClassId = null
+    if (hasClassId) {
+      parsedClassId = Number.parseInt(classId, 10)
+      if (!Number.isInteger(parsedClassId) || parsedClassId <= 0) {
+        return res.status(400).json({ message: 'A valid grade must be selected.' })
+      }
     }
 
     const normalizedParentEmail = parentEmail
       ? String(parentEmail).trim().toLowerCase()
       : null
 
-    const normalizedStudentEmail = String(studentEmail).trim().toLowerCase()
+    const normalizedStudentEmail = studentEmail
+      ? String(studentEmail).trim().toLowerCase()
+      : null
     const normalizedParentIdentity = normalizeIdentityCardNumber(parentIdentityCardNumber)
     const normalizedParentPhone = String(parentPhoneNumber).trim()
 
-    const [existingStudentUser, existingParentUser] = await Promise.all([
-      prisma.user.findUnique({ where: { email: normalizedStudentEmail } }),
-      prisma.user.findFirst({
-        where: {
-          role: 'PARENT',
-          identityCardNumber: normalizedParentIdentity
-        }
+    if (normalizedStudentEmail) {
+      const existingStudentUser = await prisma.user.findUnique({
+        where: { email: normalizedStudentEmail }
       })
-    ])
-
-    if (existingStudentUser) {
-      return res.status(409).json({ message: 'Student email is already used by another account.' })
+      if (existingStudentUser) {
+        return res.status(409).json({ message: 'Student email is already used by another account.' })
+      }
     }
+
+    const existingParentUser = await prisma.user.findFirst({
+      where: {
+        role: 'PARENT',
+        identityCardNumber: normalizedParentIdentity
+      }
+    })
 
     const studentPlainPassword = generatePassword()
     let parentPlainPassword = null
@@ -173,7 +209,7 @@ const provisionStudentWithParent = async (req, res) => {
 
     // Only generate and hash password if creating a new parent
     if (!existingParentUser) {
-      parentPlainPassword = generatePassword()
+      parentPlainPassword = `Parent@${normalizedParentIdentity}`
       parentHashedPassword = await bcrypt.hash(parentPlainPassword, 10)
       parentWasCreated = true
     }
@@ -181,10 +217,26 @@ const provisionStudentWithParent = async (req, res) => {
     const studentHashedPassword = await bcrypt.hash(studentPlainPassword, 10)
 
     const created = await prisma.$transaction(async (tx) => {
+      let klass
+      if (parsedClassId) {
+        klass = await tx.class.findUnique({
+          where: { id: parsedClassId },
+          select: { id: true, name: true, grade: true }
+        })
+        if (!klass) {
+          throw new Error('Selected grade was not found.')
+        }
+      } else {
+        klass = await findOrCreateClassByGrade(tx, { educationLevel, grade })
+      }
+
+      const studentEmailToUse =
+        normalizedStudentEmail || (await buildUniqueStudentEmail(tx, studentFullName))
+
       const studentUser = await tx.user.create({
         data: {
           name: String(studentFullName).trim(),
-          email: normalizedStudentEmail,
+          email: studentEmailToUse,
           password: studentHashedPassword,
           role: 'STUDENT'
         },
@@ -196,9 +248,17 @@ const provisionStudentWithParent = async (req, res) => {
           userId: studentUser.id,
           name: studentUser.name,
           email: studentUser.email,
-          grade: 'N/A'
+          grade: klass.grade || klass.name,
+          classId: klass.id
         },
-        select: { id: true, userId: true, name: true, email: true, grade: true }
+        select: {
+          id: true,
+          userId: true,
+          name: true,
+          email: true,
+          grade: true,
+          classId: true
+        }
       })
 
       let parentUser = existingParentUser
@@ -218,7 +278,7 @@ const provisionStudentWithParent = async (req, res) => {
             role: 'PARENT',
             identityCardNumber: normalizedParentIdentity,
             phoneNumber: normalizedParentPhone,
-            mustChangePassword: true
+            isFirstLogin: true
           },
           select: {
             id: true,
@@ -250,6 +310,7 @@ const provisionStudentWithParent = async (req, res) => {
       metadata: {
         studentUserId: created.studentUser.id,
         studentProfileId: created.studentProfile.id,
+        classId: created.studentProfile.classId,
         parentUserId: created.parentUser.id,
         parentWasCreated: created.parentWasCreated
       }
@@ -297,11 +358,17 @@ const provisionStudentWithParent = async (req, res) => {
 
 const provisionTeacher = async (req, res) => {
   try {
-    const { teacherFullName, teacherEmail, subject } = req.body
+    const { teacherFullName, teacherEmail, teacherPhoneNumber, subject } = req.body
 
-    if (!teacherFullName || !teacherEmail) {
-      return res.status(400).json({ message: 'Please provide teacherFullName and teacherEmail.' })
+    if (!teacherFullName || !teacherEmail || !teacherPhoneNumber || !subject || !String(subject).trim()) {
+      return res.status(400).json({
+        message: 'Please provide teacherFullName, teacherEmail, teacherPhoneNumber, and subject.'
+      })
     }
+
+    const normalizedSubject = String(subject).trim()
+
+    const normalizedTeacherPhone = String(teacherPhoneNumber).trim()
 
     const normalizedTeacherEmail = String(teacherEmail).trim().toLowerCase()
     const existingUser = await prisma.user.findUnique({ where: { email: normalizedTeacherEmail } })
@@ -328,7 +395,8 @@ const provisionTeacher = async (req, res) => {
           userId: teacherUser.id,
           name: teacherUser.name,
           email: teacherUser.email,
-          subject: subject && String(subject).trim() ? String(subject).trim() : 'General'
+          phone: normalizedTeacherPhone,
+          subject: normalizedSubject
         }
       })
 

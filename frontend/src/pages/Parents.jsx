@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import DashboardShell from '../components/DashboardShell'
 import FormModal from '../components/FormModal'
+import { DeleteIconButton, EditIconButton } from '../components/TableIconButtons'
 import { useConfirm } from '../context/ConfirmDialogContext'
 import {
   deleteParent,
   getAllParents,
   getParentById,
+  resetParentPassword,
   updateParent
 } from '../services/auth.service'
 
@@ -139,6 +141,30 @@ function ParentsContent() {
     }
   }
 
+  const handleResetPassword = async (parent) => {
+    const confirmed = await confirm({
+      title: 'Reset password',
+      message: `Reset the login password for "${parent.name}"? A new temporary password will be generated.`,
+      confirmLabel: 'Reset password',
+      cancelLabel: 'Cancel'
+    })
+    if (!confirmed) return
+
+    setError('')
+    setSuccess('')
+    try {
+      const res = await resetParentPassword(parent.id)
+      const creds = res.data?.data
+      setSuccess(
+        creds
+          ? `Password reset. Login: ${creds.email} / ${creds.password}`
+          : (res.data?.message || 'Password reset.')
+      )
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to reset password.')
+    }
+  }
+
   const handleDelete = async (parent) => {
     const childCount = parent.childrenCount ?? 0
     const childNote =
@@ -208,22 +234,23 @@ function ParentsContent() {
                     </span>
                   </td>
                   <td className="actions-col">
-                    <div className="table-actions table-actions--stacked">
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
+                    <div className="table-actions">
+                      <EditIconButton
+                        label={`Edit ${parent.name}`}
                         onClick={() => handleEdit(parent)}
-                      >
-                        Edit
-                      </button>
+                      />
                       <button
                         type="button"
-                        className="btn btn-sm"
-                        disabled={deletingId === parent.id}
-                        onClick={() => handleDelete(parent)}
+                        className="btn btn-sm btn-secondary"
+                        onClick={() => handleResetPassword(parent)}
                       >
-                        {deletingId === parent.id ? 'Removing…' : 'Remove'}
+                        Reset pwd
                       </button>
+                      <DeleteIconButton
+                        label={`Remove ${parent.name}`}
+                        loading={deletingId === parent.id}
+                        onClick={() => handleDelete(parent)}
+                      />
                     </div>
                   </td>
                 </tr>

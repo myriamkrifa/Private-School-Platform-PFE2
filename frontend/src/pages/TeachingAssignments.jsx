@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import DashboardShell from '../components/DashboardShell'
+import { DeleteIconButton } from '../components/TableIconButtons'
 import {
   createTeachingAssignment,
   deleteTeachingAssignment,
@@ -157,8 +158,13 @@ export default function TeachingAssignments() {
                     <td>{row.class?.name}</td>
                     <td>{row.course?.title}</td>
                     <td>{row.createdAt ? new Date(row.createdAt).toLocaleDateString() : '-'}</td>
-                    <td>
-                      <button className="btn" type="button" onClick={() => onDelete(row.id)}>Remove</button>
+                    <td className="actions-col">
+                      <div className="table-actions">
+                        <DeleteIconButton
+                          label="Remove assignment"
+                          onClick={() => onDelete(row.id)}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -1,4 +1,24 @@
+const { AiReportType } = require('@prisma/client')
 const prisma = require('../prisma')
+
+const REPORT_TYPE_ALIASES = {
+  TIMETABLE_STUDENTS: 'TIMETABLE',
+  TIMETABLE_TEACHERS: 'TIMETABLE'
+}
+
+const TIMETABLE_REPORT_TYPES = new Set(['TIMETABLE', 'TIMETABLE_STUDENTS', 'TIMETABLE_TEACHERS'])
+
+function toAiReportType(type) {
+  const key = String(type || '').toUpperCase()
+  const enumKey = REPORT_TYPE_ALIASES[key] || key
+  const value = AiReportType[enumKey]
+  if (!value) {
+    const err = new Error(`Unsupported report type: ${type}`)
+    err.status = 400
+    throw err
+  }
+  return value
+}
 const { buildReportData } = require('./aiContext.service')
 const { buildContextForUser, buildReportDataForRole } = require('./aiRoleContext.service')
 const {
@@ -35,7 +55,8 @@ const ADMIN_REPORT_PROMPTS = {
   ATTENDANCE_MONTHLY: `Write a professional Monthly Attendance Report for school administrators.`,
   STUDENT_ENROLLMENT: `Write a professional Student Enrollment Report.`,
   TEACHER_WORKLOAD: `Write a professional Teacher Workload Report.`,
-  UNPAID_FEES: `Write a professional Unpaid Fees Report.`
+  UNPAID_FEES: `Write a professional Unpaid Fees Report.`,
+  TIMETABLE: `Write a clear weekly school timetable for administrators, covering classes and teachers. Use Mon–Fri time slots and only data from the JSON.`
 }
 
 const REPORT_TITLES = {
@@ -50,7 +71,10 @@ const REPORT_TITLES = {
   CHILD_PROGRESS: 'Child Academic Progress',
   CHILD_ATTENDANCE: 'Child Attendance Summary',
   STUDY_PLAN: 'Weekly Study Plan',
-  REVISION_PLAN: 'Exam Revision Plan'
+  REVISION_PLAN: 'Exam Revision Plan',
+  TIMETABLE: 'Weekly Timetable',
+  TIMETABLE_STUDENTS: 'Student Timetables',
+  TIMETABLE_TEACHERS: 'Teacher Timetables'
 }
 
 function truncateTitle(text, max = 48) {
@@ -300,7 +324,9 @@ async function generateReport({ userId, userRole, reportType }) {
       : await buildReportDataForRole(role, type, userId)
 
   let content
-  if (await isLlmConfigured()) {
+  if (TIMETABLE_REPORT_TYPES.has(type)) {
+    content = generateLocalReport(type, reportData)
+  } else if (await isLlmConfigured()) {
     const prompt =
       ADMIN_REPORT_PROMPTS[type] ||
       `Write a professional ${REPORT_TITLES[type] || 'school report'} for a ${role} user.`
@@ -326,11 +352,23 @@ async function generateReport({ userId, userRole, reportType }) {
   const report = await prisma.aiGeneratedReport.create({
     data: {
       userId,
-      type,
+      type: toAiReportType(type),
       title: REPORT_TITLES[type] || type,
       content
     }
   })
+
+  if (type === 'TIMETABLE_STUDENTS' && TIMETABLE_REPORT_TYPES.has('TIMETABLE_TEACHERS')) {
+    const teacherContent = generateLocalReport('TIMETABLE_TEACHERS', reportData)
+    await prisma.aiGeneratedReport.create({
+      data: {
+        userId,
+        type: toAiReportType('TIMETABLE_TEACHERS'),
+        title: REPORT_TITLES.TIMETABLE_TEACHERS,
+        content: teacherContent
+      }
+    })
+  }
 
   return report
 }

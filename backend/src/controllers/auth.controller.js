@@ -118,7 +118,8 @@ const login = async (req, res) => {
     }
 
     // 2. Find user
-    const user = await prisma.user.findUnique({ where: { email } })
+    const normalizedEmail = String(email).trim().toLowerCase()
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password.' })
     }
@@ -227,7 +228,7 @@ const firebaseGoogleLogin = async (req, res) => {
         isActive: true,
         identityCardNumber: true,
         phoneNumber: true,
-        mustChangePassword: true,
+        isFirstLogin: true,
         firebaseUid: true,
         createdAt: true,
         updatedAt: true
@@ -255,7 +256,14 @@ const getMe = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, name: true, email: true, role: true, createdAt: true }
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isFirstLogin: true,
+        createdAt: true
+      }
     })
     if (!user) return res.status(404).json({ message: 'User not found.' })
     return res.status(200).json({ user })
@@ -292,7 +300,7 @@ const changePasswordFirstLogin = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, role: true }
+      select: { id: true, role: true, isFirstLogin: true }
     })
 
     if (!user) {
@@ -303,14 +311,31 @@ const changePasswordFirstLogin = async (req, res) => {
       return res.status(403).json({ message: 'Only parents can use this endpoint.' })
     }
 
+    if (!user.isFirstLogin) {
+      return res.status(400).json({ message: 'Password has already been changed.' })
+    }
+
     const hashedPassword = await bcrypt.hash(newPassword, 10)
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword }
+      data: { password: hashedPassword, isFirstLogin: false },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        identityCardNumber: true,
+        phoneNumber: true,
+        isFirstLogin: true,
+        createdAt: true,
+        updatedAt: true
+      }
     })
 
     return res.status(200).json({
-      message: 'Password changed successfully.'
+      message: 'Password changed successfully.',
+      user: updatedUser
     })
   } catch (error) {
     console.error('Change password first login error:', error)

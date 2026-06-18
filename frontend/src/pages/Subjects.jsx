@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import DashboardShell from '../components/DashboardShell'
+import { DeleteIconButton, EditIconButton } from '../components/TableIconButtons'
 import { useAuth } from '../context/AuthContext'
 import { useConfirm } from '../context/ConfirmDialogContext'
 import {
@@ -208,9 +209,17 @@ export default function Subjects() {
                       {subject._count?.grades || 0} grades
                     </td>
                     {isAdmin ? (
-                      <td>
-                        <button className="btn" type="button" onClick={() => handleEdit(subject)}>Edit</button>
-                        <button className="btn" type="button" onClick={() => handleDelete(subject)}>Delete</button>
+                      <td className="actions-col">
+                        <div className="table-actions">
+                          <EditIconButton
+                            label={`Edit ${subject.title}`}
+                            onClick={() => handleEdit(subject)}
+                          />
+                          <DeleteIconButton
+                            label={`Delete ${subject.title}`}
+                            onClick={() => handleDelete(subject)}
+                          />
+                        </div>
                       </td>
                     ) : null}
                   </tr>

@@ -19,6 +19,7 @@ import {
 } from '../services/auth.service'
 import DashboardShell from '../components/DashboardShell'
 import FormModal from '../components/FormModal'
+import { DeleteIconButton, EditIconButton } from '../components/TableIconButtons'
 import { useConfirm } from '../context/ConfirmDialogContext'
 import {
   EDUCATION_LEVELS,
@@ -440,14 +441,11 @@ export default function Classes() {
                             {isDetailsOpen ? 'Hide Details' : 'Details'}
                           </button>
                           {isAdmin ? (
-                            <button
-                              type="button"
-                              className="btn btn-sm"
-                              disabled={deletingId === kelas.id}
+                            <DeleteIconButton
+                              label={`Delete ${kelas.name}`}
+                              loading={deletingId === kelas.id}
                               onClick={() => handleDeleteClass(kelas)}
-                            >
-                              {deletingId === kelas.id ? 'Deleting…' : 'Delete'}
-                            </button>
+                            />
                           ) : null}
                         </div>
                       </td>
@@ -482,18 +480,17 @@ export default function Classes() {
                                         <td>{student.name}</td>
                                         <td>{student.email}</td>
                                         {isAdmin ? (
-                                          <td>
-                                            <button
-                                              className="btn"
-                                              type="button"
-                                              onClick={async () => {
-                                                await removeStudentFromClass(selectedClass.id, student.id)
-                                                await refreshClassDetails(selectedClass.id)
-                                                await refresh()
-                                              }}
-                                            >
-                                              Remove
-                                            </button>
+                                          <td className="actions-col">
+                                            <div className="table-actions">
+                                              <DeleteIconButton
+                                                label={`Remove ${student.name} from class`}
+                                                onClick={async () => {
+                                                  await removeStudentFromClass(selectedClass.id, student.id)
+                                                  await refreshClassDetails(selectedClass.id)
+                                                  await refresh()
+                                                }}
+                                              />
+                                            </div>
                                           </td>
                                         ) : null}
                                       </tr>
@@ -516,18 +513,17 @@ export default function Classes() {
                                         <td>{teacher.name}</td>
                                         <td>{teacher.email}</td>
                                         {isAdmin ? (
-                                          <td>
-                                            <button
-                                              className="btn"
-                                              type="button"
-                                              onClick={async () => {
-                                                await removeTeacherFromClass(selectedClass.id, teacher.id)
-                                                await refreshClassDetails(selectedClass.id)
-                                                await refresh()
-                                              }}
-                                            >
-                                              Remove
-                                            </button>
+                                          <td className="actions-col">
+                                            <div className="table-actions">
+                                              <DeleteIconButton
+                                                label={`Remove ${teacher.name} from class`}
+                                                onClick={async () => {
+                                                  await removeTeacherFromClass(selectedClass.id, teacher.id)
+                                                  await refreshClassDetails(selectedClass.id)
+                                                  await refresh()
+                                                }}
+                                              />
+                                            </div>
                                           </td>
                                         ) : null}
                                       </tr>
@@ -674,22 +670,17 @@ export default function Classes() {
                       <tr>
                         <td>{room.name}</td>
                         <td className="actions-col">
-                          <div className="table-actions table-actions--stacked">
-                            <button
-                              type="button"
-                              className={`btn btn-primary btn-sm${isEditOpen ? ' is-active' : ''}`}
+                          <div className="table-actions">
+                            <EditIconButton
+                              label={`Edit ${room.name}`}
+                              active={isEditOpen}
                               onClick={() => toggleRoomEdit(room)}
-                            >
-                              {isEditOpen ? 'Hide Edit' : 'Edit'}
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-sm"
-                              disabled={deletingRoomId === room.id}
+                            />
+                            <DeleteIconButton
+                              label={`Delete ${room.name}`}
+                              loading={deletingRoomId === room.id}
                               onClick={() => handleDeleteRoom(room)}
-                            >
-                              {deletingRoomId === room.id ? 'Deleting…' : 'Delete'}
-                            </button>
+                            />
                           </div>
                         </td>
                       </tr>

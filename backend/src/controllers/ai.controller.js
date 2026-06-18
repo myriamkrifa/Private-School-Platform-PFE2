@@ -220,7 +220,7 @@ exports.listReports = async (req, res) => {
       where: { userId: req.user.id },
       orderBy: { createdAt: 'desc' },
       take: 50,
-      select: { id: true, type: true, title: true, createdAt: true }
+      select: { id: true, type: true, title: true, createdAt: true, publishedAt: true }
     })
     return res.json({ success: true, data: reports })
   } catch (error) {
@@ -261,5 +261,26 @@ exports.generateReport = async (req, res) => {
   } catch (error) {
     const status = error.status || 500
     return res.status(status).json({ message: error.message || 'Error generating report.' })
+  }
+}
+
+exports.deleteReport = async (req, res) => {
+  try {
+    const id = parseId(req.params.id)
+    if (!id) {
+      return res.status(400).json({ message: 'Invalid report id.' })
+    }
+
+    const existing = await prisma.aiGeneratedReport.findFirst({
+      where: { id, userId: req.user.id }
+    })
+    if (!existing) {
+      return res.status(404).json({ message: 'Report not found.' })
+    }
+
+    await prisma.aiGeneratedReport.delete({ where: { id } })
+    return res.json({ success: true, message: 'Report deleted.' })
+  } catch (error) {
+    return res.status(500).json({ message: 'Error deleting report.', error: error.message })
   }
 }

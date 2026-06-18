@@ -4,6 +4,7 @@ const studentController = require('../controllers/student.controller')
 const { protect, authorize } = require('../middlewares/auth.middleware')
 
 router.get('/me/children', protect, authorize('PARENT'), studentController.getMyChildren)
+router.get('/me', protect, authorize('STUDENT'), studentController.getMyProfile)
 router.get('/', protect, authorize('ADMIN', 'TEACHER'), studentController.getAllStudents)
 router.get('/:id', protect, authorize('ADMIN', 'TEACHER', 'PARENT', 'STUDENT'), studentController.getStudentById)
 router.get('/:id/progress', protect, authorize('ADMIN', 'TEACHER', 'PARENT', 'STUDENT'), studentController.getStudentProgress)

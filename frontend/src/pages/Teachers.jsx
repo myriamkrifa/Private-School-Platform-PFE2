@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import DashboardShell from '../components/DashboardShell'
 import FormModal from '../components/FormModal'
+import { DeleteIconButton, EditIconButton } from '../components/TableIconButtons'
 import { useCreateAccount } from '../context/CreateAccountContext'
 import { useConfirm } from '../context/ConfirmDialogContext'
 import {
@@ -238,25 +239,15 @@ function TeachersContent() {
                   <td>{teacher.status || 'ACTIVE'}</td>
                   <td className="actions-col">
                     <div className="table-actions">
-                      <button
-                        type="button"
-                        className="btn-icon"
-                        title="Edit teacher"
-                        aria-label={`Edit ${teacher.name}`}
+                      <EditIconButton
+                        label={`Edit ${teacher.name}`}
                         onClick={() => handleEdit(teacher)}
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-icon btn-icon-danger"
-                        title="Delete teacher"
-                        aria-label={`Delete ${teacher.name}`}
-                        disabled={deletingId === teacher.id}
+                      />
+                      <DeleteIconButton
+                        label={`Delete ${teacher.name}`}
+                        loading={deletingId === teacher.id}
                         onClick={() => handleDelete(teacher)}
-                      >
-                        {deletingId === teacher.id ? '…' : '🗑️'}
-                      </button>
+                      />
                     </div>
                   </td>
                 </tr>

@@ -13,6 +13,46 @@ const ADMIN = {
   isActive: true
 }
 
+const DEFAULT_SUBJECTS = [
+  { title: 'Mathematics', code: 'MATH', coefficient: 4 },
+  { title: 'French', code: 'FR', coefficient: 3 },
+  { title: 'English', code: 'EN', coefficient: 3 },
+  { title: 'Science', code: 'SCI', coefficient: 3 },
+  { title: 'History', code: 'HIST', coefficient: 2 },
+  { title: 'Sport', code: 'SPORT', coefficient: 1 },
+  { title: 'Computer Science', code: 'CS', coefficient: 3 },
+  { title: 'Physics', code: 'PHYS', coefficient: 4 },
+  { title: 'Philosophy', code: 'PHIL', coefficient: 2 }
+]
+
+async function seedSubjects() {
+  for (const subject of DEFAULT_SUBJECTS) {
+    const existing = await prisma.course.findFirst({
+      where: {
+        OR: [
+          { code: subject.code },
+          { title: subject.title }
+        ]
+      }
+    })
+
+    if (existing) {
+      await prisma.course.update({
+        where: { id: existing.id },
+        data: {
+          title: subject.title,
+          code: subject.code,
+          coefficient: subject.coefficient
+        }
+      })
+      console.log(`   Updated subject: ${subject.title} (${subject.code})`)
+    } else {
+      await prisma.course.create({ data: subject })
+      console.log(`   Created subject: ${subject.title} (${subject.code})`)
+    }
+  }
+}
+
 async function main() {
   const hashedPassword = bcrypt.hashSync(ADMIN.plaintextPassword, 10)
 
@@ -39,6 +79,10 @@ async function main() {
   console.log('   Role:    ', user.role)
   console.log('   Active:  ', user.isActive)
   console.log('   Password:', ADMIN.plaintextPassword, '(plaintext for local dev only)\n')
+
+  console.log('📚 Default subjects')
+  await seedSubjects()
+  console.log('')
 }
 
 main()

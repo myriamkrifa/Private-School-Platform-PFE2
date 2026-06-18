@@ -178,9 +178,20 @@ function answerFromLocalData(message, context) {
 }
 
 const { generateRoleLocalReport } = require('./aiLocalRole.service')
+const {
+  formatSchoolStudentsTimetableHtml,
+  formatSchoolTeachersTimetableHtml
+} = require('./aiTimetable.service')
 
 function generateLocalReport(reportType, reportData) {
-  const adminTypes = ['ATTENDANCE_MONTHLY', 'STUDENT_ENROLLMENT', 'TEACHER_WORKLOAD', 'UNPAID_FEES']
+  const adminTypes = [
+    'ATTENDANCE_MONTHLY',
+    'STUDENT_ENROLLMENT',
+    'TEACHER_WORKLOAD',
+    'UNPAID_FEES',
+    'TIMETABLE_STUDENTS',
+    'TIMETABLE_TEACHERS'
+  ]
   if (!adminTypes.includes(reportType)) {
     return generateRoleLocalReport(reportType, reportData)
   }
@@ -272,6 +283,12 @@ Recommendations
 - Offer payment plans for partial (PARTIAL) statuses
 - Record new payments in the fee module when available`
     }
+
+    case 'TIMETABLE_STUDENTS':
+      return formatSchoolStudentsTimetableHtml(reportData.assignments || [], reportData.rooms || [])
+
+    case 'TIMETABLE_TEACHERS':
+      return formatSchoolTeachersTimetableHtml(reportData.assignments || [], reportData.rooms || [])
 
     default:
       return 'Report type not supported.'

@@ -9,6 +9,29 @@ const getTeacherProfileId = async (userId) => {
   return teacher?.id || null
 }
 
+const getParentChildScope = async (parentUserId) => {
+  const links = await prisma.parentStudent.findMany({
+    where: { parentId: Number(parentUserId) },
+    select: { student: { select: { id: true, classId: true } } }
+  })
+  const childIds = links.map((link) => link.student.id)
+  const classIds = [...new Set(links.map((link) => link.student.classId).filter(Boolean))]
+  return { childIds, classIds }
+}
+
+const parentAssignmentWhere = (childIds, classIds) => ({
+  OR: [
+    { targetType: 'FULL_CLASS', classId: { in: classIds } },
+    { recipients: { some: { studentId: { in: childIds } } } }
+  ]
+})
+
+const filterAssignmentsForParent = (assignments, childIds, classIds) =>
+  assignments.filter((item) =>
+    (item.targetType === 'FULL_CLASS' && classIds.includes(item.classId)) ||
+    item.recipients?.some((r) => childIds.includes(r.studentId))
+  )
+
 const notifyTargets = async (assignment, recipientIds) => {
   let userIds = []
   if (assignment.targetType === 'SELECTED_STUDENTS' && recipientIds.length > 0) {
@@ -158,7 +181,105 @@ exports.getCourseAssignments = async (req, res) => {
       )
     }
 
+    if (req.user?.role === 'PARENT') {
+      const { childIds, classIds } = await getParentChildScope(req.user.id)
+      if (childIds.length === 0) return res.json({ success: true, data: [] })
+      assignments = filterAssignmentsForParent(assignments, childIds, classIds)
+    }
+
     return res.json({ success: true, data: assignments })
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching assignments.', error: error.message })
+  }
+}
+
+exports.getParentAssignments = async (req, res) => {
+  try {
+    const { childIds, classIds } = await getParentChildScope(req.user.id)
+    if (childIds.length === 0) {
+      return res.json({ success: true, data: [], subjects: [] })
+    }
+
+    const [assignments, teachingRows] = await Promise.all([
+      prisma.assignment.findMany({
+        where: parentAssignmentWhere(childIds, classIds),
+        include: {
+          recipients: { select: { studentId: true } },
+          class: { select: { id: true, name: true } },
+          course: { select: { id: true, title: true } }
+        },
+        orderBy: { dueDate: 'asc' }
+      }),
+      prisma.teachingAssignment.findMany({
+        where: { classId: { in: classIds } },
+        include: { course: { select: { id: true, title: true, code: true } } }
+      })
+    ])
+
+    const subjectMap = new Map()
+    teachingRows.forEach((row) => {
+      if (row.course) subjectMap.set(row.course.id, row.course)
+    })
+    const subjects = Array.from(subjectMap.values()).sort((a, b) =>
+      a.title.localeCompare(b.title)
+    )
+
+    return res.json({ success: true, data: assignments, subjects })
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching parent assignments.', error: error.message })
+  }
+}
+
+exports.getMyAssignments = async (req, res) => {
+  try {
+    const role = req.user?.role
+    const include = {
+      recipients: { select: { studentId: true } },
+      class: { select: { id: true, name: true } },
+      course: { select: { id: true, title: true } }
+    }
+
+    if (role === 'STUDENT') {
+      const student = await prisma.student.findUnique({
+        where: { userId: req.user.id },
+        select: { id: true, classId: true }
+      })
+      if (!student) return res.json({ success: true, data: [] })
+
+      const assignments = await prisma.assignment.findMany({
+        where: {
+          OR: [
+            { targetType: 'FULL_CLASS', classId: student.classId },
+            { recipients: { some: { studentId: student.id } } }
+          ]
+        },
+        include,
+        orderBy: { dueDate: 'asc' }
+      })
+      return res.json({ success: true, data: assignments })
+    }
+
+    if (role === 'TEACHER') {
+      const assignments = await prisma.assignment.findMany({
+        where: { teacherId: req.user.id },
+        include: {
+          ...include,
+          _count: { select: { submissions: true } }
+        },
+        orderBy: { dueDate: 'asc' }
+      })
+      return res.json({ success: true, data: assignments })
+    }
+
+    if (role === 'ADMIN') {
+      const assignments = await prisma.assignment.findMany({
+        include,
+        orderBy: { dueDate: 'asc' }
+      })
+      return res.json({ success: true, data: assignments })
+    }
+
+    return res.status(403).json({ message: 'Forbidden.' })
   } catch (error) {
     return res.status(500).json({ message: 'Error fetching assignments.', error: error.message })
   }

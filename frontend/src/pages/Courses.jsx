@@ -9,6 +9,7 @@ import {
   getTeacherClasses
 } from '../services/auth.service'
 import DashboardShell from '../components/DashboardShell'
+import { DeleteIconButton } from '../components/TableIconButtons'
 import { useConfirm } from '../context/ConfirmDialogContext'
 
 const initialMaterialForm = { courseId: '', title: '', description: '', fileUrl: '', content: '' }
@@ -258,14 +259,13 @@ export default function Courses() {
                     </td>
                     <td>{new Date(material.createdAt).toLocaleDateString()}</td>
                     {canCreateMaterial ? (
-                      <td>
-                        <button
-                          className="btn"
-                          type="button"
-                          onClick={() => handleDeleteMaterial(material.id)}
-                        >
-                          Delete
-                        </button>
+                      <td className="actions-col">
+                        <div className="table-actions">
+                          <DeleteIconButton
+                            label="Delete material"
+                            onClick={() => handleDeleteMaterial(material.id)}
+                          />
+                        </div>
                       </td>
                     ) : null}
                   </tr>

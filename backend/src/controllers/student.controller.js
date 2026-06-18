@@ -1,4 +1,58 @@
 const prisma = require('../prisma')
+const {
+  getTeacherProfileId,
+  getTeacherClassIds,
+  teacherHasClassAccess
+} = require('../services/teacherClassAccess.service')
+
+async function getTeacherStudentWhere(user) {
+  if (user?.role !== 'TEACHER') return null
+
+  const teacherProfileId = await getTeacherProfileId(user.id)
+  if (!teacherProfileId) {
+    return { classId: { in: [] } }
+  }
+
+  const classIds = await getTeacherClassIds(teacherProfileId)
+  if (classIds.length === 0) {
+    return { classId: { in: [] } }
+  }
+
+  return { classId: { in: classIds } }
+}
+
+async function teacherCanAccessStudent(user, student) {
+  if (user?.role !== 'TEACHER') return true
+  if (!student?.classId) return false
+
+  const teacherProfileId = await getTeacherProfileId(user.id)
+  if (!teacherProfileId) return false
+
+  return teacherHasClassAccess(teacherProfileId, student.classId)
+}
+
+exports.getMyProfile = async (req, res) => {
+  try {
+    if (req.user?.role !== 'STUDENT') {
+      return res.status(403).json({ message: 'Only student accounts can access this profile.' })
+    }
+
+    const student = await prisma.student.findUnique({
+      where: { userId: req.user.id },
+      include: {
+        class: { select: { id: true, name: true, room: true, level: true } }
+      }
+    })
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student profile not found for this account.' })
+    }
+
+    return res.json({ success: true, data: student })
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching student profile.', error: error.message })
+  }
+}
 
 exports.getMyChildren = async (req, res) => {
   try {
@@ -37,7 +91,10 @@ exports.getMyChildren = async (req, res) => {
 
 exports.getAllStudents = async (req, res) => {
   try {
+    const teacherWhere = await getTeacherStudentWhere(req.user)
+
     const students = await prisma.student.findMany({
+      where: teacherWhere || undefined,
       select: {
         id: true,
         userId: true,
@@ -69,6 +126,21 @@ exports.getStudentById = async (req, res) => {
       }
     })
     if (!student) return res.status(404).json({ message: 'Student not found.' })
+
+    if (req.user?.role === 'STUDENT') {
+      const ownProfile = await prisma.student.findUnique({
+        where: { userId: req.user.id },
+        select: { id: true }
+      })
+      if (!ownProfile || ownProfile.id !== student.id) {
+        return res.status(403).json({ message: 'You can only view your own student profile.' })
+      }
+    }
+
+    if (!(await teacherCanAccessStudent(req.user, student))) {
+      return res.status(403).json({ message: 'Forbidden. You are not assigned to this student\'s class.' })
+    }
+
     res.json({ success: true, data: student })
   } catch (error) {
     res.status(500).json({ message: 'Error fetching student.', error: error.message })
@@ -141,6 +213,10 @@ exports.updateStudent = async (req, res) => {
     const existing = await prisma.student.findUnique({ where: { id } })
     if (!existing) {
       return res.status(404).json({ message: 'Student not found.' })
+    }
+
+    if (!(await teacherCanAccessStudent(req.user, existing))) {
+      return res.status(403).json({ message: 'Forbidden. You are not assigned to this student\'s class.' })
     }
 
     const {
@@ -261,12 +337,100 @@ exports.updateStudent = async (req, res) => {
 
 exports.deleteStudent = async (req, res) => {
   try {
-    const { id } = req.params
-    await prisma.student.delete({
-      where: { id: parseInt(id) }
+    const id = Number.parseInt(req.params.id, 10)
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: 'Invalid student id.' })
+    }
+
+    const student = await prisma.student.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        userId: true,
+        parentLinks: {
+          select: {
+            parentId: true,
+            parent: {
+              select: {
+                id: true,
+                _count: { select: { parentLinks: true } }
+              }
+            }
+          }
+        }
+      }
     })
-    res.json({ success: true, message: 'Student deleted.' })
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found.' })
+    }
+
+    const parentsToNotify = []
+    const parentsToDelete = []
+    const seenParents = new Set()
+
+    for (const link of student.parentLinks) {
+      if (seenParents.has(link.parentId)) continue
+      seenParents.add(link.parentId)
+
+      const linkedChildren = link.parent._count.parentLinks
+      if (linkedChildren > 1) {
+        parentsToNotify.push(link.parentId)
+      } else {
+        parentsToDelete.push(link.parentId)
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.student.delete({ where: { id } })
+
+      if (student.userId) {
+        await tx.user.delete({ where: { id: student.userId } })
+      }
+
+      if (parentsToNotify.length > 0) {
+        await tx.notification.createMany({
+          data: parentsToNotify.map((parentId) => ({
+            userId: parentId,
+            type: 'SYSTEM',
+            title: 'Student removed',
+            message: `Student "${student.name}" has been removed from the platform.`
+          }))
+        })
+      }
+
+      if (parentsToDelete.length > 0) {
+        await tx.user.deleteMany({
+          where: {
+            id: { in: parentsToDelete },
+            role: 'PARENT'
+          }
+        })
+      }
+    })
+
+    let message = `Student "${student.name}" deleted.`
+    if (parentsToNotify.length > 0) {
+      message += ` ${parentsToNotify.length} parent(s) notified.`
+    }
+    if (parentsToDelete.length > 0) {
+      message += ` ${parentsToDelete.length} parent account(s) removed (no remaining children).`
+    }
+
+    res.json({
+      success: true,
+      message,
+      data: {
+        studentId: id,
+        parentsNotified: parentsToNotify.length,
+        parentsDeleted: parentsToDelete.length
+      }
+    })
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'Student not found.' })
+    }
     res.status(500).json({ message: 'Error deleting student.', error: error.message })
   }
 }
@@ -311,6 +475,18 @@ exports.linkParentToStudent = async (req, res) => {
 exports.getStudentProgress = async (req, res) => {
   try {
     const studentId = Number.parseInt(req.params.id, 10)
+
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { id: true, classId: true }
+    })
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found.' })
+    }
+
+    if (!(await teacherCanAccessStudent(req.user, student))) {
+      return res.status(403).json({ message: 'Forbidden. You are not assigned to this student\'s class.' })
+    }
 
     const [grades, attendance] = await Promise.all([
       prisma.grade.findMany({ where: { studentId } }),

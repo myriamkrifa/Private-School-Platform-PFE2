@@ -13,9 +13,28 @@ exports.getMyNotifications = async (req, res) => {
   }
 }
 
+exports.getUnreadCount = async (req, res) => {
+  try {
+    const count = await prisma.notification.count({
+      where: { userId: req.user.id, isRead: false }
+    })
+
+    return res.json({ success: true, data: { count } })
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching unread count.', error: error.message })
+  }
+}
+
 exports.markAsRead = async (req, res) => {
   try {
     const id = Number.parseInt(req.params.id, 10)
+    const existing = await prisma.notification.findFirst({
+      where: { id, userId: req.user.id }
+    })
+    if (!existing) {
+      return res.status(404).json({ message: 'Notification not found.' })
+    }
+
     const notification = await prisma.notification.update({
       where: { id },
       data: { isRead: true }

@@ -39,6 +39,7 @@ import {
 import { jsPDF } from 'jspdf'
 import DashboardCalendar from './DashboardCalendar'
 import StudentWelcomeBanner from './StudentWelcomeBanner'
+import { DeleteIconButton } from './TableIconButtons'
 import { formatStudentId } from '../utils/studentId'
 import { useAuth } from '../context/AuthContext'
 import { getAiDashboardStats } from '../services/ai.service'
@@ -702,13 +703,10 @@ function TeacherDashboard({ user }) {
               {(resourcesByCourse[selectedCourseId] || []).map((resource) => (
                 <li key={resource.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-2">
                   <span className="truncate">{resource.name}</span>
-                  <button
-                    type="button"
-                    className="text-xs text-rose-600"
+                  <DeleteIconButton
+                    label="Delete resource"
                     onClick={() => setDeleteTarget({ type: 'resource', id: resource.id, courseId: selectedCourseId })}
-                  >
-                    Delete
-                  </button>
+                  />
                 </li>
               ))}
             </ul>
@@ -744,7 +742,10 @@ function TeacherDashboard({ user }) {
                   <p className="font-medium">Student #{note.studentId}</p>
                   <p className="text-slate-600">{note.text}</p>
                 </div>
-                <button type="button" className="text-xs text-rose-600" onClick={() => setDeleteTarget({ type: 'note', id: note.id })}>Delete</button>
+                <DeleteIconButton
+                  label="Delete note"
+                  onClick={() => setDeleteTarget({ type: 'note', id: note.id })}
+                />
               </li>
             ))}
           </ul>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Calendar, ChevronLeft, ChevronRight, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, MoreHorizontal, Plus } from 'lucide-react'
 import { createCalendarEvent, deleteCalendarEvent } from '../services/auth.service'
+import { DeleteIconButton } from './TableIconButtons'
 
 const WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
@@ -235,15 +236,13 @@ export default function DashboardCalendar({ events = [], onEventsChange, canMana
                   {event.detail ? <span className="dashboard-calendar-event-detail">{event.detail}</span> : null}
                 </div>
                 {event.canDelete && event.type === 'custom' ? (
-                  <button
-                    type="button"
+                  <DeleteIconButton
+                    label={`Delete ${event.title}`}
                     className="dashboard-calendar-event-delete"
-                    onClick={() => removeEvent(event)}
+                    loading={deletingId === event.eventId}
                     disabled={deletingId === event.eventId}
-                    aria-label={`Delete ${event.title}`}
-                  >
-                    <Trash2 size={14} aria-hidden />
-                  </button>
+                    onClick={() => removeEvent(event)}
+                  />
                 ) : null}
               </li>
             ))}

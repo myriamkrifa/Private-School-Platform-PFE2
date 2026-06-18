@@ -9,14 +9,61 @@ const getTeacherProfileId = async (userId) => {
   return teacher?.id || null
 }
 
-exports.getAllCourses = async (_req, res) => {
+exports.getAllCourses = async (req, res) => {
   try {
+    let where = {}
+
+    if (req.user?.role === 'TEACHER') {
+      const teacherProfileId = await getTeacherProfileId(req.user.id)
+      const subjects = await prisma.teachingAssignment.findMany({
+        where: { teacherId: teacherProfileId },
+        select: { courseId: true }
+      })
+      const ids = Array.from(new Set(subjects.map((s) => s.courseId)))
+      if (ids.length === 0) return res.json({ success: true, data: [] })
+      where.id = { in: ids }
+    }
+
+    if (req.user?.role === 'STUDENT') {
+      const profile = await prisma.student.findUnique({
+        where: { userId: req.user.id },
+        select: { classId: true }
+      })
+      if (!profile?.classId) return res.json({ success: true, data: [] })
+      const subjects = await prisma.teachingAssignment.findMany({
+        where: { classId: profile.classId },
+        select: { courseId: true }
+      })
+      const ids = Array.from(new Set(subjects.map((s) => s.courseId)))
+      if (ids.length === 0) return res.json({ success: true, data: [] })
+      where.id = { in: ids }
+    }
+
+    if (req.user?.role === 'PARENT') {
+      const links = await prisma.parentStudent.findMany({
+        where: { parentId: req.user.id },
+        include: { student: { select: { classId: true } } }
+      })
+      const classIds = Array.from(
+        new Set(links.map((link) => link.student?.classId).filter(Boolean))
+      )
+      if (classIds.length === 0) return res.json({ success: true, data: [] })
+      const subjects = await prisma.teachingAssignment.findMany({
+        where: { classId: { in: classIds } },
+        select: { courseId: true }
+      })
+      const ids = Array.from(new Set(subjects.map((s) => s.courseId)))
+      if (ids.length === 0) return res.json({ success: true, data: [] })
+      where.id = { in: ids }
+    }
+
     const courses = await prisma.course.findMany({
+      where,
       include: {
         class: { select: { id: true, name: true } },
         teacher: { select: { id: true, name: true, email: true } }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { title: 'asc' }
     })
     return res.json({ success: true, data: courses })
   } catch (error) {

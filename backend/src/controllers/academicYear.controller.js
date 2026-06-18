@@ -1,4 +1,5 @@
 const prisma = require('../prisma')
+const { buildYearDetailsPayload, yearDetailsInclude } = require('../services/academicYearDetails.service')
 
 const parseId = (raw) => {
   const id = Number.parseInt(raw, 10)
@@ -23,6 +24,28 @@ exports.getAcademicYears = async (req, res) => {
     return res.json({ success: true, data: years })
   } catch (error) {
     return res.status(500).json({ message: 'Error fetching academic years.', error: error.message })
+  }
+}
+
+exports.getAcademicYearById = async (req, res) => {
+  try {
+    const id = parseId(req.params.id)
+    if (!id) {
+      return res.status(400).json({ message: 'Invalid academic year id.' })
+    }
+
+    const year = await prisma.academicYear.findUnique({
+      where: { id },
+      include: yearDetailsInclude
+    })
+
+    if (!year) {
+      return res.status(404).json({ message: 'Academic year not found.' })
+    }
+
+    return res.json({ success: true, data: buildYearDetailsPayload(year) })
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching academic year.', error: error.message })
   }
 }
 

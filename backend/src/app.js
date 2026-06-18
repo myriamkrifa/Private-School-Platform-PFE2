@@ -25,6 +25,7 @@ const teacherWorkRoutes = require('./routes/teacherWork.routes')
 const subjectRoutes = require('./routes/subject.routes')
 const dashboardRoutes = require('./routes/dashboard.routes')
 const aiRoutes = require('./routes/ai.routes')
+const timetableRoutes = require('./routes/timetable.routes')
 
 const app  = express()
 const PORT = process.env.PORT || 5000
@@ -49,6 +50,7 @@ app.use('/api/students', studentRoutes)
 app.use('/api/teachers', teacherRoutes)
 app.use('/api/parents', parentRoutes)
 app.use('/api/classes', classRoutes)
+app.use('/api/rooms', require('./routes/room.routes'))
 app.use('/api/users', userRoutes)
 app.use('/api/academic-years', academicYearRoutes)
 app.use('/api/grades', gradeRoutes)
@@ -66,6 +68,7 @@ app.use('/api/subjects', subjectRoutes)
 // /api/student/dashboard).
 app.use('/api', dashboardRoutes)
 app.use('/api/ai', aiRoutes)
+app.use('/api/timetables', timetableRoutes)
 // Teacher workspace endpoints (must be mounted after dashboardRoutes so
 // /api/teacher/dashboard hits the dashboard router first).
 app.use('/api/teacher', teacherWorkRoutes)

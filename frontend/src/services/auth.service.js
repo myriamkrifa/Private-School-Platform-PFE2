@@ -58,6 +58,7 @@ export const deleteTeacher = (id) => API.delete(`/teachers/${id}`)
 export const getAllParents = () => API.get('/parents')
 export const getParentById = (id) => API.get(`/parents/${id}`)
 export const updateParent = (id, data) => API.put(`/parents/${id}`, data)
+export const resetParentPassword = (id) => API.post(`/parents/${id}/reset-password`)
 export const deleteParent = (id) => API.delete(`/parents/${id}`)
 
 // ─────────────────────────────────────────────
@@ -139,6 +140,8 @@ export const justifyAbsence = (attendanceId, data) => API.patch(`/attendance/${a
 // ─────────────────────────────────────────────
 export const createAssignment = (data) => API.post('/assignments', data)
 export const getCourseAssignments = (courseId) => API.get(`/assignments/course/${courseId}`)
+export const getMyAssignments = () => API.get('/assignments/me')
+export const getParentAssignments = () => API.get('/assignments/parent')
 export const submitAssignment = (assignmentId, data) => API.post(`/assignments/${assignmentId}/submissions`, data)
 export const getAssignmentSubmissions = (assignmentId) => API.get(`/assignments/${assignmentId}/submissions`)
 

@@ -1,12 +1,51 @@
 const prisma = require('../prisma')
 const { createAuditLog } = require('./audit.controller')
+const {
+  normalizeEducationLevel,
+  isValidGradeForLevel
+} = require('../services/classGrade.service')
+const {
+  getTeacherProfileId,
+  getTeacherClassIds
+} = require('../services/teacherClassAccess.service')
+const {
+  prepareAssignmentsWithAutoRooms,
+  createSchedulingPlan,
+  formatClassTimetableGridHtml
+} = require('../services/aiTimetable.service')
 
 const buildClassData = (body) => {
-  const { name, room, level, academicYearId, capacity, description } = body
+  const { name, room, roomId, level, educationLevel, grade, academicYearId, capacity, description } = body
   const data = {}
   if (name !== undefined) data.name = String(name).trim()
   if (room !== undefined) data.room = String(room).trim()
-  if (level && (level === 'PRIMARY' || level === 'SECONDARY')) data.level = level
+
+  if (roomId !== undefined) {
+    if (roomId === null || roomId === '') {
+      data.roomId = null
+    } else {
+      const parsedRoomId = Number.parseInt(roomId, 10)
+      if (!Number.isInteger(parsedRoomId) || parsedRoomId <= 0) {
+        throw new Error('Invalid room id.')
+      }
+      data.roomId = parsedRoomId
+    }
+  }
+
+  const resolvedLevel = normalizeEducationLevel(educationLevel) || normalizeEducationLevel(level)
+  if (resolvedLevel) data.level = resolvedLevel
+
+  if (grade !== undefined) {
+    const trimmedGrade = String(grade).trim()
+    if (trimmedGrade) {
+      if (resolvedLevel && !isValidGradeForLevel(resolvedLevel, trimmedGrade)) {
+        throw new Error(`Invalid grade "${trimmedGrade}" for education level ${resolvedLevel}.`)
+      }
+      data.grade = trimmedGrade
+    } else {
+      data.grade = null
+    }
+  }
   if (capacity !== undefined && capacity !== null && capacity !== '') {
     const cap = Number.parseInt(capacity, 10)
     if (!Number.isInteger(cap) || cap < 0) {
@@ -40,25 +79,20 @@ exports.getAllClasses = async (req, res) => {
       where.id = profile.classId
     }
     if (req.user?.role === 'TEACHER') {
-      const profile = await prisma.teacher.findUnique({
-        where: { userId: req.user.id },
-        select: { id: true }
-      })
-      if (profile) {
-        const teaching = await prisma.teachingAssignment.findMany({
-          where: { teacherId: profile.id },
-          select: { classId: true }
-        })
-        const classIds = Array.from(new Set(teaching.map((t) => t.classId)))
-        if (classIds.length === 0) return res.json({ success: true, data: [] })
-        where.id = { in: classIds }
+      const teacherProfileId = await getTeacherProfileId(req.user.id)
+      if (!teacherProfileId) {
+        return res.json({ success: true, data: [] })
       }
+      const classIds = await getTeacherClassIds(teacherProfileId)
+      if (classIds.length === 0) return res.json({ success: true, data: [] })
+      where.id = { in: classIds }
     }
 
     const classes = await prisma.class.findMany({
       where,
       include: {
         teachers: { select: { id: true, name: true, email: true } },
+        roomRef: { select: { id: true, name: true, building: true, capacity: true } },
         academicYear: { select: { id: true, name: true, isActive: true } },
         _count: { select: { students: true, teachers: true, teachingAssignments: true } }
       },
@@ -81,6 +115,7 @@ exports.getClassById = async (req, res) => {
           orderBy: { name: 'asc' }
         },
         teachers: { select: { id: true, name: true, email: true, subject: true } },
+        roomRef: { select: { id: true, name: true, building: true, capacity: true } },
         academicYear: { select: { id: true, name: true, isActive: true } },
         teachingAssignments: {
           include: {
@@ -99,12 +134,36 @@ exports.getClassById = async (req, res) => {
 
 exports.createClass = async (req, res) => {
   try {
-    const { name, room } = req.body
-    if (!name || !room) {
-      return res.status(400).json({ message: 'Please provide name and room.' })
+    const { name, educationLevel, level, grade } = req.body
+    if (!name || !(educationLevel || level) || !grade) {
+      return res.status(400).json({
+        message: 'Please provide name, education level, and grade.'
+      })
     }
     const data = buildClassData(req.body)
-    if (!data.level) data.level = 'PRIMARY'
+    if (!data.room) data.room = 'TBD'
+
+    if (data.roomId) {
+      const room = await prisma.room.findUnique({ where: { id: data.roomId }, select: { name: true } })
+      if (!room) {
+        return res.status(400).json({ message: 'Selected room was not found.' })
+      }
+      data.room = room.name
+    }
+    if (!data.level) {
+      return res.status(400).json({ message: 'Education level must be Primary or Secondary.' })
+    }
+    if (!data.grade) {
+      return res.status(400).json({ message: 'Grade is required.' })
+    }
+
+    if (!data.academicYearId) {
+      const activeYear = await prisma.academicYear.findFirst({
+        where: { isActive: true, isArchived: false },
+        select: { id: true }
+      })
+      if (activeYear) data.academicYearId = activeYear.id
+    }
 
     const klass = await prisma.class.create({ data })
     await createAuditLog({
@@ -124,6 +183,15 @@ exports.updateClass = async (req, res) => {
   try {
     const classId = Number.parseInt(req.params.id, 10)
     const data = buildClassData(req.body)
+
+    if (data.roomId) {
+      const room = await prisma.room.findUnique({ where: { id: data.roomId }, select: { name: true } })
+      if (!room) {
+        return res.status(400).json({ message: 'Selected room was not found.' })
+      }
+      data.room = room.name
+    }
+
     const updated = await prisma.class.update({ where: { id: classId }, data })
     await createAuditLog({
       actorId: req.user?.id,
@@ -235,5 +303,55 @@ exports.removeTeacherFromClass = async (req, res) => {
     return res.json({ success: true, data: klass, message: 'Teacher removed from class.' })
   } catch (error) {
     return res.status(500).json({ message: 'Error removing teacher from class.', error: error.message })
+  }
+}
+
+exports.generateClassTimetable = async (req, res) => {
+  try {
+    const classId = Number.parseInt(req.params.id, 10)
+    if (!Number.isInteger(classId) || classId <= 0) {
+      return res.status(400).json({ message: 'Invalid class id.' })
+    }
+
+    const klass = await prisma.class.findUnique({
+      where: { id: classId },
+      select: { id: true, name: true }
+    })
+    if (!klass) return res.status(404).json({ message: 'Class not found.' })
+
+    if (req.user?.role === 'TEACHER') {
+      const teacherProfileId = await getTeacherProfileId(req.user.id)
+      const allowedClassIds = teacherProfileId ? await getTeacherClassIds(teacherProfileId) : []
+      if (!allowedClassIds.includes(classId)) {
+        return res.status(403).json({ message: 'Forbidden. You are not assigned to this class.' })
+      }
+    }
+
+    const { assignments: allAssignments, rooms } = await prepareAssignmentsWithAutoRooms()
+    if (!rooms.length) {
+      return res.status(400).json({ message: 'Create at least one room first.' })
+    }
+
+    const classAssignments = allAssignments.filter((row) => row.class?.id === classId)
+
+    if (!classAssignments.length) {
+      return res.status(400).json({
+        message: 'No teaching assignments for this class. Assign teachers and subjects first.'
+      })
+    }
+
+    const scheduling = createSchedulingPlan(allAssignments, rooms)
+    const content = formatClassTimetableGridHtml(classAssignments, klass.name, '', scheduling)
+
+    return res.json({
+      success: true,
+      data: {
+        classId: klass.id,
+        className: klass.name,
+        content
+      }
+    })
+  } catch (error) {
+    return res.status(500).json({ message: 'Error generating class timetable.', error: error.message })
   }
 }

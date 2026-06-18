@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { Bell, ChevronDown, LogOut } from 'lucide-react'
+import schoolLogo from '../assets/school-logo.png'
 import { useAuth } from '../context/AuthContext'
 import { CreateAccountProvider, useCreateAccount } from '../context/CreateAccountContext'
 import { useNotifications } from '../context/NotificationContext'
@@ -166,7 +167,9 @@ function DashboardShellContent({ title, subtitle, children }) {
       <div className="flex min-h-screen">
         <aside className="erp-sidebar hidden md:flex md:flex-col">
           <div className="erp-sidebar-brand">
-            <div className="erp-sidebar-logo">PS</div>
+            <div className="erp-sidebar-logo">
+              <img src={schoolLogo} alt="Private School logo" />
+            </div>
             <div>
               <p className="erp-sidebar-brand-title">Private School</p>
               <p className="erp-sidebar-brand-subtitle">ERP Platform</p>

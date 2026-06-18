@@ -1,3 +1,5 @@
+const TIMETABLE_REPORT_TYPES = ['TIMETABLE_STUDENTS', 'TIMETABLE_TEACHERS']
+
 const REPORTS_BY_ROLE = {
   ADMIN: [
     { type: 'ATTENDANCE_MONTHLY', label: 'Monthly Attendance Report', description: 'School-wide attendance for this month.' },
@@ -87,6 +89,9 @@ function getCapabilitiesForRole(role) {
 
 function isReportAllowedForRole(role, reportType) {
   const type = String(reportType || '').toUpperCase()
+  if (role === 'ADMIN' && TIMETABLE_REPORT_TYPES.includes(type)) {
+    return true
+  }
   return (REPORTS_BY_ROLE[role] || []).some((r) => r.type === type)
 }
 

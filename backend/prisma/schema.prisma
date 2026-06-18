@@ -92,6 +92,7 @@ enum AiReportType {
   CHILD_ATTENDANCE
   STUDY_PLAN
   REVISION_PLAN
+  TIMETABLE
 }
 
 // ─────────────────────────────────────────────
@@ -108,7 +109,7 @@ model User {
   identityCardNumber  String?   @unique
   phoneNumber         String?
   firebaseUid         String?   @unique
-  mustChangePassword  Boolean   @default(false)
+  isFirstLogin        Boolean   @default(false)
 
   studentProfile      Student?
   teacherProfile      Teacher?
@@ -123,8 +124,11 @@ model User {
   courses             Course[]        @relation("CourseTeacher")
   authoredAssignments Assignment[]    @relation("TeacherAssignments")
   auditLogs           AuditLog[]      @relation("AuditActor")
+  calendarEvents      CalendarEvent[] @relation("CalendarEventAuthor")
   aiChatSessions      AiChatSession[]
   aiGeneratedReports  AiGeneratedReport[]
+  publishedTimetables PublishedTimetable[] @relation("UserPublishedTimetables")
+  timetablePublications PublishedTimetable[] @relation("TimetablePublisher")
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -237,12 +241,15 @@ model Class {
   id              Int           @id @default(autoincrement())
   name            String
   room            String
+  roomId          Int?
   level           ClassLevel    @default(PRIMARY)
+  grade           String?
   capacity        Int?
   description     String?       @db.Text
   academicYearId  Int?
 
   academicYear    AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  roomRef         Room?         @relation(fields: [roomId], references: [id], onDelete: SetNull)
   students        Student[]
   teachers        Teacher[]
   courses         Course[]
@@ -254,6 +261,16 @@ model Class {
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+}
+
+model Room {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  capacity  Int?
+  building  String?
+  classes   Class[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Course == Subject (school subject taught in classes).
@@ -462,6 +479,25 @@ model Notification {
 }
 
 // ─────────────────────────────────────────────
+//  Calendar
+// ─────────────────────────────────────────────
+
+model CalendarEvent {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?  @db.Text
+  date        DateTime
+  createdById Int?
+
+  createdBy   User?    @relation("CalendarEventAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+}
+
+// ─────────────────────────────────────────────
 //  Audit
 // ─────────────────────────────────────────────
 
@@ -512,14 +548,30 @@ model AiChatMessage {
 }
 
 model AiGeneratedReport {
-  id        Int          @id @default(autoincrement())
-  userId    Int
-  type      AiReportType
-  title     String
-  content   String       @db.Text
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime     @default(now())
+  id          Int          @id @default(autoincrement())
+  userId      Int
+  type        AiReportType
+  title       String
+  content     String       @db.Text
+  publishedAt DateTime?
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
 
   @@index([userId])
   @@index([type])
+}
+
+model PublishedTimetable {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  title          String
+  content        String   @db.Text
+  publishedAt    DateTime @default(now())
+  publishedById  Int
+  sourceReportId Int?
+
+  user           User     @relation("UserPublishedTimetables", fields: [userId], references: [id], onDelete: Cascade)
+  publishedBy    User     @relation("TimetablePublisher", fields: [publishedById], references: [id], onDelete: Cascade)
+
+  @@index([userId, publishedAt])
 }

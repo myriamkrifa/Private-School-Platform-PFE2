@@ -19,7 +19,22 @@ const createPrismaClient = () => {
 	}
 }
 
+const { AiReportType, Prisma } = require('@prisma/client')
 const globalForPrisma = globalThis
+
+const aiReportModel = Prisma?.dmmf?.datamodel?.models?.find((m) => m.name === 'AiGeneratedReport')
+const hasPublishedAtField = aiReportModel?.fields?.some((f) => f.name === 'publishedAt')
+
+// Drop cached client in dev when Prisma schema was regenerated (enums / new columns / models).
+if (
+	process.env.NODE_ENV !== 'production' &&
+	globalForPrisma.prisma &&
+	(!AiReportType?.TIMETABLE || !hasPublishedAtField)
+) {
+	globalForPrisma.prisma.$disconnect().catch(() => {})
+	globalForPrisma.prisma = null
+}
+
 const prisma = globalForPrisma.prisma || createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') {

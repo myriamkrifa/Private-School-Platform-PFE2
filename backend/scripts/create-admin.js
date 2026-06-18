@@ -14,7 +14,7 @@ async function main() {
       data: {
         role: 'ADMIN',
         password: hashedReset,
-        mustChangePassword: false
+        isFirstLogin: false
       },
       select: { id: true, name: true, email: true, role: true }
     })
@@ -33,7 +33,7 @@ async function main() {
       email,
       password: hashed,
       role: 'ADMIN',
-      mustChangePassword: false
+      isFirstLogin: false
     },
     select: { id: true, name: true, email: true, role: true, createdAt: true }
   })

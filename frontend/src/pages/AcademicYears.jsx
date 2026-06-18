@@ -11,6 +11,7 @@ import {
 } from '../services/auth.service'
 import DashboardShell from '../components/DashboardShell'
 import YearDetailsPanel from '../components/YearDetailsPanel'
+import { DeleteIconButton } from '../components/TableIconButtons'
 import { useConfirm } from '../context/ConfirmDialogContext'
 
 function formatDate(value) {
@@ -314,14 +315,11 @@ export default function AcademicYears() {
                           >
                             Details
                           </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            disabled={actionId === y.id}
+                          <DeleteIconButton
+                            label={`Delete ${y.name}`}
+                            loading={actionId === y.id}
                             onClick={() => handleDelete(y)}
-                          >
-                            Delete
-                          </button>
+                          />
                           {y.isActive ? (
                             <span className="table-action-hint" title="Current active year">
                               <Check size={16} aria-hidden />
