@@ -29,7 +29,7 @@ export default function Attendance() {
   const [studentId, setStudentId] = useState('')
   const [children, setChildren] = useState([])
   const [records, setRecords] = useState([])
-  const [justifyForm, setJustifyForm] = useState({ id: '', justification: '' })
+  const [justifyForm, setJustifyForm] = useState({ subject: '', justification: '' })
   const [editingRecordId, setEditingRecordId] = useState(null)
   const [editStatus, setEditStatus] = useState('PRESENT')
   const [savingRecordId, setSavingRecordId] = useState(null)
@@ -109,13 +109,37 @@ export default function Attendance() {
     }
   }
 
+  const findRecordBySubject = (subjectName) => {
+    const normalized = subjectName.trim().toLowerCase()
+    if (!normalized) return null
+
+    const matches = records.filter((row) => {
+      const title = (row.course?.title || 'General').toLowerCase()
+      return title === normalized && row.status === 'ABSENT'
+    })
+
+    if (matches.length === 0) return null
+    return matches[0]
+  }
+
   const submitJustification = async (event) => {
     event.preventDefault()
     setError('')
     setSuccess('')
+
+    const record = findRecordBySubject(justifyForm.subject)
+    if (!record) {
+      setError(
+        records.length === 0
+          ? 'Load attendance history first, then enter the subject name of an absent record.'
+          : 'No absent record found for that subject. Check the name matches history above (e.g. English).'
+      )
+      return
+    }
+
     try {
-      await justifyAbsence(justifyForm.id, { justification: justifyForm.justification })
-      setJustifyForm({ id: '', justification: '' })
+      await justifyAbsence(record.id, { justification: justifyForm.justification })
+      setJustifyForm({ subject: '', justification: '' })
       setSuccess('Absence justification saved.')
       if (isStudent) {
         await loadAttendance()
@@ -284,14 +308,14 @@ export default function Attendance() {
             <form onSubmit={submitJustification} className="space-y-3">
               <h3>Justify absence</h3>
               <p className="text-sm text-slate-500">
-                Enter the attendance record ID from history above. Status will be set to EXCUSED.
+                Enter the subject name from history above (e.g. English). Status will be set to EXCUSED.
               </p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <input
                   className="form-input"
-                  placeholder="Attendance record ID"
-                  value={justifyForm.id}
-                  onChange={(e) => setJustifyForm({ ...justifyForm, id: e.target.value })}
+                  placeholder="Subject name (e.g. English)"
+                  value={justifyForm.subject}
+                  onChange={(e) => setJustifyForm({ ...justifyForm, subject: e.target.value })}
                 />
                 <input
                   className="form-input md:col-span-2"
